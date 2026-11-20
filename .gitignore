@@ -1,0 +1,13 @@
+# Chave de assinatura do APK: nunca vai para o repositório
+android/signing/
+
+# Saídas de build e arquivos locais
+android/build/
+*.apk
+*.idsig
+*.log
+*.tgz
+.tmp/
+.idea/
+*.iml
+Claude outputs/

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Finanças</string>
+    <string name="widget_label">Lançar por voz</string>
+    <string name="widget_description">Fale a despesa ou receita e confirme, sem abrir o app.</string>
+</resources>

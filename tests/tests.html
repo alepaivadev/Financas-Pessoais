@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Testes</title>
+</head>
+<body>
+  <pre id="result">rodando</pre>
+  <script type="module">
+    import { addMonths, fmtMoney, isTracked, isValidDate, monthLabel, parseMoney, today } from '../js/format.js';
+    import { budgetId, budgetRows, categoryTotals, donutSegments, monthTotals, monthTxs } from '../js/stats.js';
+    import { DEFAULT_CATEGORIES, makeCategory, migrateV1 } from '../js/categories.js';
+    import { parseVoice } from '../js/voice.js';
+
+    const failures = [];
+    let count = 0;
+    const eq = (actual, expected, name) => {
+      count++;
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        failures.push(`${name}: esperado ${JSON.stringify(expected)}, veio ${JSON.stringify(actual)}`);
+      }
+    };
+    const throws = (fn, pattern, name) => {
+      count++;
+      try { fn(); failures.push(`${name}: deveria falhar`); }
+      catch (e) { if (!pattern.test(e.message)) failures.push(`${name}: mensagem "${e.message}"`); }
+    };
+
+    const money = {
+      '1.234,56': 123456, '1234,56': 123456, '1234.56': 123456, '1,234.56': 123456, '1.234': 123400,
+      '1.234.567,89': 123456789, '12,5': 1250, '12': 1200, '0,05': 5, 'R$ 50,00': 5000, '0': 0,
+      '1,234': null, '1.234.56': null, '1,234,56': null, '1.234,567': null, '12,345': null,
+      '-5': null, 'abc': null, '': null, '1e3': null, '99999999999999': null, '1.23.45': null,
+    };
+    for (const [input, expected] of Object.entries(money)) eq(parseMoney(input), expected, `parseMoney(${input})`);
+
+    eq(fmtMoney(123456).replace(/\s/g, ' '), 'R$ 1.234,56', 'fmtMoney');
+    eq(monthLabel('2026-10'), 'Outubro de 2026', 'monthLabel');
+    eq(addMonths('2026-01', -1), '2025-12', 'addMonths recua o ano');
+    eq(addMonths('2026-12', 1), '2027-01', 'addMonths avança o ano');
+    eq(today(new Date(2026, 9, 31, 23, 30)), '2026-10-31', 'today usa o horário local');
+    eq(isValidDate('2026-02-30'), false, 'data inexistente');
+    eq(isValidDate('2024-02-29'), true, 'ano bissexto');
+    eq([isTracked('2026-09-30'), isTracked('2026-10-01'), isTracked('2027-01-01'), isTracked('2025-12-31')], [false, true, true, false], 'controle começa em outubro de 2026');
+
+    const tx = (id, type, amountCents, date, categoryId) =>
+      ({ id, type, amountCents, date, categoryId, description: '', createdAt: 0 });
+    const cats = DEFAULT_CATEGORIES;
+    const txs = [
+      tx('1', 'income', 5000, '2026-10-01', null),
+      tx('2', 'expense', 700, '2026-10-02', 'academia'),
+      tx('3', 'expense', 300, '2026-10-31', 'internet'),
+      tx('4', 'expense', 1100, '2026-10-15', 'uber'),
+      tx('5', 'expense', 50, '2026-10-20', 'emergencia'),
+      tx('6', 'expense', 999, '2026-09-30', 'uber'),
+      tx('7', 'expense', 300, '2026-11-01', 'uber'),
+    ];
+
+    eq(DEFAULT_CATEGORIES.filter((c) => c.parentId === 'despesas-fixas').map((c) => c.name),
+      ['Rifa faculdade', 'Academia', 'Internet', 'Faculdade', 'Cabelo', 'Papel de água'], 'subcategorias de Despesas fixas');
+    eq(DEFAULT_CATEGORIES.filter((c) => c.parentId === 'despesas-variaveis').map((c) => c.name), ['Uber', 'Vestuário'], 'subcategorias de Despesas variáveis');
+
+    eq(monthTotals(txs, '2026-10'), { income: 5000, expense: 2150, balance: 2850 }, 'meses não se misturam');
+    eq(monthTotals([], '2026-10'), { income: 0, expense: 0, balance: 0 }, 'mês vazio');
+    eq(monthTxs(txs, '2026-10').map((t) => t.id), ['3', '5', '4', '2', '1'], 'histórico mais recente primeiro');
+
+    const groups = categoryTotals(txs, '2026-10', cats);
+    eq(groups.map((g) => [g.cat.id, g.total]), [['despesas-fixas', 1000], ['despesas-variaveis', 1100], ['emergencia', 50]], 'total da principal soma as subcategorias');
+    eq(groups[0].children.length, 6, 'subcategorias sem gasto continuam visíveis');
+    eq(groups.reduce((s, g) => s + g.total, 0), monthTotals(txs, '2026-10').expense, 'cards fecham com as despesas do mês');
+
+    const segments = donutSegments(groups, 3);
+    eq(segments.map((s) => s.color), ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'], 'cor acompanha a categoria');
+    eq(Math.round(segments.reduce((s, x) => s + x.share, 0) * 1e6) / 1e6, 1, 'rosca soma 100%');
+    eq(donutSegments(categoryTotals(txs.filter((t) => t.categoryId !== 'academia' && t.categoryId !== 'internet'), '2026-10', cats), 3).find((s) => s.id === 'emergencia').color, 'var(--series-3)', 'cor não muda quando outra categoria zera');
+    eq(donutSegments(categoryTotals([], '2026-10', cats), 3), [], 'rosca vazia');
+    const many = Array.from({ length: 10 }, (_, i) => makeCategory(`c${i}`, `C${i}`, 'independent', null, i));
+    const manySegments = donutSegments(categoryTotals(many.map((c, i) => tx(`m${i}`, 'expense', 100, '2026-10-01', c.id)), '2026-10', many), 10);
+    eq([manySegments.length, manySegments.at(-1).name, manySegments.at(-1).total], [8, 'Outras', 300], 'acima de 8 categorias agrupa em Outras');
+
+    const archived = cats.map((c) => (c.id === 'academia' ? { ...c, archived: true } : c));
+    eq(categoryTotals(txs, '2026-10', archived)[0].children.some((c) => c.cat.id === 'academia'), true, 'excluída aparece no mês com gasto');
+    eq(categoryTotals(txs, '2026-10', archived)[0].total, 1000, 'excluída continua no total do mês');
+    eq(categoryTotals(txs, '2026-09', archived)[0].children.some((c) => c.cat.id === 'academia'), false, 'excluída some dos meses sem gasto');
+
+    const budgets = [
+      { id: budgetId('2026-10', 'despesas-variaveis'), month: '2026-10', categoryId: 'despesas-variaveis', cents: 2000 },
+      { id: budgetId('2026-10', 'uber'), month: '2026-10', categoryId: 'uber', cents: 1000 },
+      { id: budgetId('2026-11', 'uber'), month: '2026-11', categoryId: 'uber', cents: 5000 },
+    ];
+    const rows = Object.fromEntries(budgetRows(txs, '2026-10', cats, budgets).map((r) => [r.cat.id, r]));
+    eq([rows['despesas-variaveis'].spent, rows['despesas-variaveis'].remaining], [1100, 900], 'restante = orçamento − gasto');
+    eq(rows.uber.remaining, -100, 'orçamento ultrapassado');
+    eq(rows.vestuario.remaining, null, 'sem orçamento');
+    eq(rows.emergencia.level, 0, 'independente no primeiro nível');
+    eq(rows.uber.level, 1, 'subcategoria no segundo nível');
+    eq(budgetRows(txs, '2026-11', cats, budgets).find((r) => r.cat.id === 'uber').budget, 5000, 'orçamento por mês');
+    eq(budgetRows(txs, '2026-09', cats, budgets).find((r) => r.cat.id === 'uber').budget, null, 'orçamento não vaza para outro mês');
+
+    const v1 = migrateV1([
+      tx('demo-1', 'expense', 100, '2026-10-01', 'moradia'),
+      tx('a', 'income', 900, '2026-10-02', 'salario'),
+      tx('b', 'expense', 200, '2026-10-03', 'mercado'),
+    ], [
+      { id: 'moradia', name: 'Moradia', kind: 'expense' },
+      { id: 'mercado', name: 'Mercado', kind: 'expense' },
+      { id: 'salario', name: 'Salário', kind: 'income' },
+    ]);
+    eq(v1.transactions.map((t) => [t.id, t.categoryId]), [['a', null], ['b', 'mercado']], 'migração tira exemplo e categoria de receita');
+    eq(v1.categories.find((c) => c.id === 'mercado')?.kind, 'independent', 'migração preserva categoria usada');
+    eq(v1.categories.some((c) => c.id === 'moradia'), false, 'migração descarta categoria sem uso');
+
+
+    // Cadastro por voz: [frase, tipo, centavos, categoria, detalhes]
+    const voiceCats = [...DEFAULT_CATEGORIES.filter((c) => c.kind !== 'main'), makeCategory('mercado', 'Mercado', 'independent', null, 99)];
+    for (const [said, type, cents, cat, desc] of [
+      ['Uber 25', 'expense', 2500, 'uber', ''],
+      ['R$100, rifa faculdade', 'expense', 10000, 'rifa-faculdade', ''],
+      ['R$ 100 rifa faculdade', 'expense', 10000, 'rifa-faculdade', ''],
+      ['30 vestuário, calção, moletom', 'expense', 3000, 'vestuario', 'Calção, moletom'],
+      ['gastei 32,50 no uber corrida até a faculdade', 'expense', 3250, 'uber', 'Corrida até a faculdade'],
+      ['Uber 25 reais e 50 centavos', 'expense', 2550, 'uber', ''],
+      ['internet 99,90', 'expense', 9990, 'internet', ''],
+      ['Uber 99', 'expense', 9900, 'uber', ''],
+      ['50 calça', 'expense', 5000, 'vestuario', 'Calça'],
+      ['água 88,42', 'expense', 8842, 'papel-de-agua', ''],
+      ['academia cento e vinte', 'expense', 12000, 'academia', ''],
+      ['mercado 1.234,56', 'expense', 123456, 'mercado', ''],
+      ['30 farmácia', 'expense', 3000, null, 'Farmácia'],
+      ['recebi 1.500 de salário', 'income', 150000, null, 'Salário'],
+      ['17.95 em Uber', 'expense', 1795, 'uber', ''],
+      ['17 95 em Uber', 'expense', 1795, 'uber', ''],
+      ['6:50 em Uber', 'expense', 650, 'uber', ''],
+      ['84,99 e internet fatura brisanet', 'expense', 8499, 'internet', 'Fatura brisanet'],
+      ['12.99 uber', 'expense', 1299, 'uber', ''],
+      ['R$ 99 internet', 'expense', 9900, 'internet', ''],
+      ['corrida no 99 de 15,90', 'expense', 1590, 'uber', ''],
+      ['1795 em Uber', 'expense', 1795, 'uber', ''],
+      ['R$ 1795 uber', 'expense', 179500, 'uber', ''],
+      ['17 reais e 95 centavos em Uber', 'expense', 1795, 'uber', ''],
+      ['dezessete e noventa e cinco em Uber', 'expense', 1795, 'uber', ''],
+      ['mil e quinhentos faculdade', 'expense', 150000, 'faculdade', ''],
+      ['faculdade 1500', 'expense', 150000, 'faculdade', ''],
+      ['paguei 50 no picos internet', 'expense', 5000, 'internet', 'Pix'],
+      ['pica 30 uber', 'expense', 3000, 'uber', 'Pix'],
+      ['recebi 200 de picos', 'income', 20000, null, 'Pix'],
+      ['PIX recebido 100', 'income', 10000, null, 'Pix recebido'],
+      ['picolé 5', 'expense', 500, null, 'Picolé'],
+    ]) {
+      const r = parseVoice(said, voiceCats);
+      eq([r.type, r.amountCents, r.categoryId, r.description], [type, cents, cat, desc], `voz: "${said}"`);
+    }
+    eq(parseVoice('1795 em Uber', voiceCats).ambiguousCents, 179500, 'voz: "1795" oferece R$ 1.795,00 como alternativa');
+    eq(parseVoice('17,95 em Uber', voiceCats).ambiguousCents, null, 'voz: "17,95" não é ambíguo');
+
+    document.getElementById('result').textContent = failures.length
+      ? `FALHOU ${failures.length}/${count}\n${failures.join('\n')}`
+      : `OK ${count} verificações`;
+  </script>
+</body>
+</html>
