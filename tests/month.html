@@ -47,7 +47,7 @@
       await setClock(new Date(2026, 10, 1, 0, 5));
       check(text('monthLabel') === 'Novembro de 2026' && text('compareBtn') === 'Comparar', 'dia 1º abre novembro sozinho');
       check(money('balance').includes('0,00') && text('history').includes('Nenhuma movimentação'), 'novembro começa zerado');
-      check($('nextMonth').disabled, 'novembro é o último mês disponível');
+      check(!$('nextMonth').disabled, 'dá para avançar para dezembro (mês futuro)');
 
       await addTx('expense', '50', 'uber');
       check(money('balance').includes('50,00') && text('monthLabel') === 'Novembro de 2026', 'novembro recebe a despesa');
@@ -66,28 +66,15 @@
       check(money('balance').includes('800,00'), 'outubro segue intacto');
       check($('prevMonth').disabled, 'não existe mês antes de outubro');
 
-      const openBudgets = async () => { $('manageBtn').click(); $('manageTabBudget').click(); await wait(50); };
+      const budgetText = (id) => doc().querySelector(`[data-budget="${id}"] .budget-value`)?.textContent;
       $('tabOrcamento').click();
       await wait(100);
-      await openBudgets();
-      fill('budget-uber', '300,00');
-      await wait(250);
-      $('manageClose').click();
+      check(!$('budget-uber') && budgetText('uber') === 'Sem limite' && !$('copyBudgets'), 'mês encerrado: orçamento só para consulta');
       $('nextMonth').click();
       await wait(100);
-      await openBudgets();
-      check(!$('budget-uber').value, 'orçamento de um mês não vale para outro');
-      $('copyBudgets').click();
+      fill('budget-uber', '300,00');
       await wait(250);
-      check($('budget-uber').value === '300,00', 'copiar do mês anterior');
-      fill('budget-uber', '200,00');
-      await wait(250);
-      $('manageClose').click();
-      $('prevMonth').click();
-      await wait(100);
-      await openBudgets();
-      check($('budget-uber').value === '300,00', 'mês anterior mantém seu orçamento');
-      $('manageClose').click();
+      check($('budget-uber').value === '300,00', 'mês atual: orçamento editável');
       $('tabBalanco').click();
       await wait(100);
 
@@ -98,6 +85,22 @@
       $('nextMonth').click();
       await wait(100);
       check(text('monthLabel') === 'Dezembro de 2026' && text('compareBtn') === 'Comparar', 'dezembro é o mês atual');
+      $('tabOrcamento').click();
+      await wait(100);
+      check(!$('budget-uber').value, 'orçamento de um mês não vale para outro');
+      $('copyBudgets').click();
+      await wait(250);
+      check($('budget-uber').value === '300,00', 'copiar do mês anterior');
+      fill('budget-uber', '200,00');
+      await wait(250);
+      $('prevMonth').click();
+      await wait(100);
+      check(!$('budget-uber') && budgetText('uber') === '300,00', 'novembro encerrado mostra o orçamento que teve, sem edição');
+      $('nextMonth').click();
+      await wait(100);
+      check($('budget-uber').value === '200,00', 'dezembro mantém o valor editado');
+      $('tabBalanco').click();
+      await wait(100);
 
       await setClock(new Date(2027, 0, 1, 0, 1));
       check(text('monthLabel') === 'Janeiro de 2027', 'a regra se repete na virada do ano');

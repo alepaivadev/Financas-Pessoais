@@ -277,7 +277,7 @@ dialog form { display: flex; flex-direction: column; gap: 14px; }
 
 .empty { padding: 28px 12px; text-align: center; color: var(--ink-2); }
 
-/* Orçamento e Categorias */
+/* Categorias */
 .donut-card { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .donut { position: relative; width: 220px; max-width: 100%; aspect-ratio: 1; }
 .donut svg { display: block; width: 100%; height: 100%; }
@@ -459,12 +459,14 @@ html.quick body > :not(dialog) { display: none !important; }
 .cmp-total strong { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .cmp-total-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); min-height: 30px; }
 .cmp-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.cmp-pick { display: flex; align-items: center; gap: 6px; min-height: 30px; max-width: 100%; }
-.cmp-pick select {
-  min-width: 0; max-width: 100%; padding: 4px 26px 4px 10px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23898781' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center / 12px;
-  color: var(--ink); font: inherit; font-size: 13px; appearance: none; -webkit-appearance: none; text-overflow: ellipsis;
+.cmp-pick {
+  display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; max-width: 100%; padding: 0 2px;
+  border: 0; background: none; color: var(--ink-2); font: inherit; font-size: 13px; cursor: pointer;
 }
+.cmp-pick-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-pick .cat-select-arrow { width: 16px; height: 16px; }
+.cmp-pick.open .cat-select-arrow { transform: rotate(180deg); }
+.cmp-month-list { margin-top: 10px; gap: 2px; }
 .cmp-verdict { margin: 10px 0 0; text-align: center; font-size: 13px; color: var(--ink-2); }
 .cmp-verdict.up { color: var(--expense); }
 .cmp-verdict.down { color: var(--income); }
@@ -598,3 +600,109 @@ svg.cat-icon { overflow: visible; }
 .welcome-card { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .welcome-card h2 { margin: 0; font-size: 18px; }
 .cat-empty { padding: 10px; text-align: center; }
+
+/* Aba Orçamento */
+.budget-note { margin: 0; text-align: center; }
+.budget-card { padding-block: 4px; }
+.budget-card .budget-row:first-child { border-top: 0; }
+.budget-value {
+  min-height: 36px; display: grid; place-items: center; padding: 6px 8px;
+  border-radius: 10px; background: var(--wash); font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.budget-value.is-empty { color: var(--muted); font-size: 13px; }
+
+/* Caixinhas Orçamento / Despesas futuras */
+.budget-switch { align-self: center; width: min(100%, 340px); }
+.budget-switch button { flex: 1; }
+.planned-new { justify-content: center; margin: 0; }
+.planned-card { padding-block: 8px; }
+.planned-total { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0 10px; border-bottom: 1px solid var(--grid); color: var(--ink-2); }
+.planned-total strong { color: var(--expense); font-size: 17px; font-variant-numeric: tabular-nums; }
+.planned-list { list-style: none; margin: 0; padding: 0; }
+.planned-row { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 0; border-top: 1px solid var(--grid); }
+.planned-row:first-child { border-top: 0; }
+.planned-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.planned-cat { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.planned-desc { color: var(--ink-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.planned-value { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.planned-actions { display: flex; gap: 2px; flex: none; }
+.planned-actions .icon-btn { width: 34px; height: 34px; }
+.planned-actions .icon-btn.pay { color: var(--income); }
+
+/* Saldo previsto (depois das despesas futuras), transparente, logo abaixo do saldo */
+.hero-row { display: flex; flex-direction: column; align-items: center; gap: 2px; } /* previsto centralizado logo abaixo do saldo */
+.hero-projected { display: inline-flex; flex-direction: column; align-items: center; opacity: .42; line-height: 1.1; }
+.hero-projected-value { font-size: clamp(20px, 6vw, 26px); font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.hero-projected-label { font-size: 11px; font-weight: 500; text-transform: lowercase; color: var(--ink-2); }
+.hero-projected.negative { color: var(--expense); }
+.until-note { margin: -6px 0 0; font-size: 13px; color: var(--ink-2); }
+.planned-next-title { margin: 4px 0 2px; font-size: 16px; text-align: center; }
+.planned-month + .planned-month { margin-top: 8px; }
+
+/* Mês futuro: atalho de volta ao mês atual, centralizado sob o nome do mês */
+.month-actions { gap: 8px; align-items: center; }
+.today-btn { background: var(--wash) !important; color: var(--ink) !important; }
+
+/* Despesa futura: repetir mensalmente até um mês */
+.repeat-field { display: flex; flex-direction: column; gap: 10px; }
+.repeat-check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 15px; font-weight: 500; cursor: pointer; }
+.repeat-check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+.repeat-label { font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.repeat-seg button { flex: 1; font-size: 13px; padding-inline: 4px; }
+.date-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.date-row { display: flex; align-items: center; gap: 6px; }
+.date-row input { flex: 1; min-width: 0; }
+.add-date { align-self: flex-start; margin-top: 6px; padding: 6px 12px; font-size: 14px; }
+
+/* Pagar despesa futura com um toque */
+.pay-box { margin-top: -4px; padding: 10px; border-radius: 14px; background: var(--wash); }
+.pay-box-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); text-align: center; }
+.pay-list { display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow-y: auto; }
+.pay-section { margin: 10px 0 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.pay-choice {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.pay-choice:hover { background: color-mix(in srgb, var(--surface) 92%, var(--ink)); }
+.pay-choice:disabled { opacity: .5; }
+.pay-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pay-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pay-meta { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pay-value { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--expense); }
+#payBody { min-height: 0; overflow-y: auto; }
+
+/* Orçamento comprometido com despesas futuras (aba Categorias) */
+.cat-total { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.cat-committed { font-size: 11px; font-weight: 500; color: var(--ink-2); opacity: .75; }
+.sub-fill.committed { position: absolute; top: 0; border-radius: 0 99px 99px 0; } /* mesma cor do gasto: conta como já gasto */
+.sub-track .sub-fill:first-child { position: relative; z-index: 1; border-radius: 99px 0 0 99px; }
+.sub-bar:not(.has-committed) .sub-track .sub-fill:first-child { border-radius: 99px; }
+.sub-summary-committed { font-size: 13px; color: var(--ink-2); }
+.sub-tx.planned { opacity: .7; }
+.sub-committed-note { font-size: 11px; color: var(--ink-2); opacity: .8; white-space: nowrap; }
+
+/* Comparar meses: chips de meses a mais no gráfico */
+.cmp-extra { margin-top: 10px; }
+.cmp-extra-title { margin: 0 0 6px; text-align: center; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.cmp-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer;
+}
+.chip.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); font-weight: 600; }
+.chip:disabled { opacity: .4; cursor: default; }
+
+/* Sem barra de rolagem visível (página, janelas e listas). A rolagem continua funcionando com o dedo, a roda do mouse ou o teclado. */
+html, body, dialog, #cmpBody, #subBody, #payBody, #manageBody, #histBody, #typeBody, .cmp-cols, .pay-list, .cat-picker, * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* Cards de Receitas e Despesas (abaixo do Saldo): ícone e textos centralizados */
+.tile, button.tile { justify-content: center; text-align: center; }
+.tile > div { display: flex; flex-direction: column; align-items: center; }
+@media (max-width: 420px) {
+  .tile { align-items: center; }
+}

@@ -2,17 +2,22 @@
 
 App de controle financeiro pessoal para Android (APK) e navegador (PWA): receitas, despesas, categorias com ícones, orçamento mensal e lançamento por voz. Funciona 100% offline: não tem servidor, conta nem login, e os dados ficam só no aparelho.
 
-**Versão atual: 2.0** (versionCode 11)
+**Versão atual: 2.3** (versionCode 14)
 
 ## Funcionalidades
 
-- **Balanço do mês:** saldo, receitas e despesas, com período escolhível (hoje, esta semana, mês ou um dia específico) e histórico de movimentações com edição e exclusão.
-- **Comparar meses:** gráfico de linha do valor acumulado por dia e as categorias que mais gastaram em cada mês.
+- **Três abas:** Balanço (esquerda), Categorias (meio) e Orçamento (direita).
+- **Balanço do mês:** saldo, receitas e despesas, com período escolhível (hoje, esta semana, mês ou um dia específico) e histórico de movimentações com edição e exclusão. Abaixo do saldo, em transparente, o **saldo previsto** depois das despesas futuras do mês.
+- **Meses futuros:** a seta avança para os próximos meses para ver as despesas futuras já cadastradas, com "Voltar ao mês atual".
+- **Comparar meses:** escolha o mês a comparar numa lista, gráfico de linha do valor acumulado por dia (com até 3 meses a mais no gráfico) e o top 3 de despesas ou receitas de cada mês.
 - **Categorias em dois níveis:** categoria principal com subcategorias, ou categoria independente. Uma instalação nova começa **sem nenhuma categoria**: cada pessoa cria as suas.
 - **Ícones e cores:** 52 ícones e 13 cores para escolher ao criar uma categoria. **Subcategorias herdam a cor da categoria principal automaticamente**; mudar a cor da principal muda todas as filhas.
-- **Orçamento mensal por categoria:** barras verde (até 70%), laranja (70% a 100%) e vermelha (acima de 100%), e "Copiar do mês anterior".
-- **Gráfico de rosca** por categoria ou subcategoria, com as cores escolhidas.
-- **Lançamento por voz** (sem IA e sem internet): entende frases como "gastei 17,95 no mercado", "recebi 1.500 de salário" ou "Pix de 84,99 internet", com valores em número ou por extenso. O formulário abre preenchido para confirmar.
+- **Aba Orçamento:** limites do mês por categoria (só o mês atual é editável; meses passados ficam para consulta) e "Copiar do mês anterior".
+- **Despesas futuras:** na aba Orçamento, cadastre o que ainda vai pagar, sem repetir, **mensalmente** até um mês ou em **datas personalizadas** (ex.: parcelas em 24/11, 08/12 e 22/12). Elas descontam do saldo previsto e aparecem como **comprometido** no orçamento de cada categoria. "Paguei" lança a despesa de verdade com um toque.
+- **Pagar despesa futura com um toque:** ao lançar uma despesa nova, uma caixinha mostra as despesas futuras do mês; tocar numa delas já lança.
+- **Barras de orçamento** na aba Categorias: verde (até 70%), laranja (70% a 100%) e vermelha (acima de 100%), já contando o comprometido.
+- **Gráfico de rosca** por subcategoria (padrão) ou categoria principal, com as cores escolhidas.
+- **Lançamento por voz** (sem IA e sem internet): entende frases como "gastei 17,95 no mercado", "recebi 1.500 de salário" ou "Pix de 84,99 internet", com valores em número ou por extenso. Também entende despesas futuras ("despesa futura de 57,60 por mês até fevereiro em gastos pessoais", "... na data 24 de novembro, 8 de dezembro, no valor de 21,68 cada uma") e "pagar despesa futura", que abre a lista para escolher qual foi paga. O formulário abre preenchido para confirmar.
 - **Widget "Lançar por voz"** na tela inicial do Android: um toque e já pode falar.
 - **Backup** em arquivo JSON (menu de três pontinhos › Fazer backup).
 
@@ -71,17 +76,18 @@ Guarde essa pasta em lugar seguro. Uma atualização só instala por cima se for
 ## Regras de negócio
 
 - Saldo = receitas − despesas. Valores gravados em centavos inteiros.
-- O controle começa em outubro de 2026 (`FIRST_MONTH` em `js/format.js`). Não dá para lançar em meses futuros.
+- O controle começa em outubro de 2026 (`FIRST_MONTH` em `js/format.js`). Receitas e despesas não aceitam data futura; o que vai acontecer depois entra como **despesa futura**.
 - Despesas apontam para uma subcategoria ou categoria independente; o total de uma principal é a soma das subcategorias.
 - Excluir uma categoria com movimentações só a arquiva: ela some dos cadastros, mas continua no histórico e nos totais.
-- Orçamentos são por mês e por categoria.
+- Orçamentos são por mês e por categoria. Um mês futuro sem orçamento próprio usa o do mês atual como referência.
+- Despesas futuras ficam no IndexedDB (versão 3 do banco, store `planned`); a atualização da versão 2 só cria esse espaço vazio, sem mexer no resto.
 - Cada aparelho tem seus próprios dados; não há sincronização.
 
 ## Testes
 
 Com o servidor ligado, abra no navegador:
 
-- `http://localhost:8420/tests/tests.html`: cálculos, valores, datas, migração e 32 frases de voz.
+- `http://localhost:8420/tests/tests.html`: cálculos, valores, datas, migração e as frases de voz.
 - `http://localhost:8420/tests/smoke.html`: percorre o app inteiro.
 - `http://localhost:8420/tests/month.html`: virada de mês e de ano com relógio simulado.
 

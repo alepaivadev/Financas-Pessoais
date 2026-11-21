@@ -22,9 +22,13 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18v11H3zM3 8l3-4h12l3 4M16 13.5h2"/></svg>
         <span>Balanço</span>
       </button>
-      <button type="button" id="tabOrcamento">
+      <button type="button" id="tabCategorias">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.500 9H15z"/></svg>
-        <span>Orçamento e Categorias</span>
+        <span>Categorias</span>
+      </button>
+      <button type="button" id="tabOrcamento">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.500"/><path d="M12 12v.01"/></svg>
+        <span>Orçamento</span>
       </button>
     </nav>
     <div class="app-menu-wrap">
@@ -55,7 +59,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
-  <button type="button" class="fab fab-manage" id="manageBtn" aria-label="Gerenciar categorias e orçamentos" hidden>
+  <button type="button" class="fab fab-manage" id="manageBtn" aria-label="Gerenciar categorias" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
   </button>
 
@@ -63,6 +67,7 @@
     <form id="txForm" novalidate>
       <h2 id="txTitle"></h2>
       <p class="voice-heard" id="txHeard" hidden></p>
+      <div class="pay-box" id="txPayBox" hidden></div>
       <label class="field">Valor (R$)
         <input id="txAmount" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
       </label>
@@ -75,6 +80,23 @@
       <label class="field" id="txDescField">Detalhes (opcional)
         <textarea id="txDesc" rows="3" maxlength="300" placeholder="Ex.: corrida até a faculdade"></textarea>
       </label>
+      <div class="repeat-field" id="txUntilField" hidden>
+        <span class="repeat-label" id="txRepeatLabel">Repetir</span>
+        <div class="seg repeat-seg" id="txRepeatSeg" role="tablist" aria-labelledby="txRepeatLabel">
+          <button type="button" role="tab" data-mode="once" id="txRepeatOnce">Não repetir</button>
+          <button type="button" role="tab" data-mode="monthly" id="txRepeatMonthly">Mensalmente</button>
+          <button type="button" role="tab" data-mode="custom" id="txRepeatCustom">Personalizada</button>
+        </div>
+        <label class="field" id="txUntilWrap" hidden>Até o mês
+          <input type="month" id="txUntil">
+        </label>
+        <div class="field" id="txDatesWrap" hidden>
+          <span>Datas</span>
+          <div class="date-list" id="txDates"></div>
+          <button type="button" class="btn add-date" id="txAddDate">+ Adicionar data</button>
+        </div>
+      </div>
+      <p class="until-note" id="txUntilNote" hidden></p>
       <label class="field" id="txDateField">Data
         <input id="txDate" type="date">
       </label>
@@ -88,15 +110,21 @@
     </form>
   </dialog>
 
+  <dialog id="payDialog" aria-labelledby="payTitle">
+    <div class="dialog-head">
+      <span class="dialog-head-spacer" aria-hidden="true"></span>
+      <h2 id="payTitle">Pagar despesa futura</h2>
+      <button type="button" class="icon-btn" id="payClose" aria-label="Fechar">×</button>
+    </div>
+    <p class="voice-heard" id="payHeard" hidden></p>
+    <div id="payBody"></div>
+  </dialog>
+
   <dialog id="manageDialog" class="wide" aria-labelledby="manageTitle">
     <div class="dialog-head">
       <span class="dialog-head-spacer" aria-hidden="true"></span>
-      <h2 id="manageTitle">Gerenciar</h2>
+      <h2 id="manageTitle">Gerenciar categorias</h2>
       <button type="button" class="icon-btn" id="manageClose" aria-label="Fechar">×</button>
-    </div>
-    <div class="seg" role="tablist" aria-label="Gerenciamento">
-      <button type="button" role="tab" id="manageTabCats">Categorias</button>
-      <button type="button" role="tab" id="manageTabBudget">Orçamento</button>
     </div>
     <div id="manageBody"></div>
   </dialog>

@@ -145,7 +145,17 @@
       ['pica 30 uber', 'expense', 3000, 'uber', 'Pix'],
       ['recebi 200 de picos', 'income', 20000, null, 'Pix'],
       ['PIX recebido 100', 'income', 10000, null, 'Pix recebido'],
+      ['de 200 Pixel da avó', 'expense', 20000, null, 'Pix da avó'],
+      ['200 pixels uber', 'expense', 20000, 'uber', 'Pix'],
+      ['p i x 30 uber', 'expense', 3000, 'uber', 'Pix'],
+      ['paguei 50 no P.I.X internet', 'expense', 5000, 'internet', 'Pix'],
+      ['dei 40 no pixie', 'expense', 4000, null, 'Pix'],
       ['picolé 5', 'expense', 500, null, 'Picolé'],
+      ['despesa futura de 30 uber por mês até fevereiro', 'planned', 3000, 'uber', ''],
+      ['lançar despesa futura de 120 academia por 3 meses', 'planned', 12000, 'academia', ''],
+      ['internet 99,90 por mês até março', 'planned', 9990, 'internet', ''],
+      ['despesa futura 21,68 uber 24/11, 08/12 e 22/12', 'planned', 2168, 'uber', ''],
+      ['lançar despesa futura na categoria uber na data 24 de novembro, 8 de dezembro, 22 de dezembro, no valor de R$ 21,68 cada uma', 'planned', 2168, 'uber', ''],
     ]) {
       const r = parseVoice(said, voiceCats);
       eq([r.type, r.amountCents, r.categoryId, r.description], [type, cents, cat, desc], `voz: "${said}"`);

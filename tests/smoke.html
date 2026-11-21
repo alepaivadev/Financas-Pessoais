@@ -45,7 +45,7 @@
       await wait(300);
       await ready();
     };
-    const openManage = async (tab) => { $('manageBtn').click(); $(tab).click(); await wait(50); };
+    const openManage = async () => { $('manageBtn').click(); await wait(50); };
     const closeManage = () => $('manageClose').click();
     const confirmOk = async () => { await wait(80); $('confirmOk').click(); await wait(300); };
     const historyRow = (name) => [...doc().querySelectorAll('#history .tx-row')].find((r) => r.textContent.includes(name));
@@ -80,10 +80,14 @@
       check(money($('balance')).includes('0,00'), 'começa zerado');
       check(text('history').includes('Nenhuma movimentação'), 'histórico vazio');
       check(text('monthLabel') === monthLabel(month) && text('compareBtn') === 'Comparar', 'abre no mês atual');
-      check($('nextMonth').disabled, 'não navega para meses futuros');
+      check(!$('nextMonth').disabled, 'avança para meses futuros');
       check($('appMenu').contains($('backupBtn')) && $('appMenu').hidden && !$('backupDialog'), 'backup só no menu de três pontinhos do topo');
+      $('tabCategorias').click();
+      check(!$('view').querySelector('#backupBtn'), 'Categorias sem o botão de download na tela');
+      check(!$('manageBtn').hidden, 'Categorias mostra o botão de gerenciar');
       $('tabOrcamento').click();
-      check(!$('view').querySelector('#backupBtn'), 'Orçamento e Categorias sem o botão de download na tela');
+      check(!$('view').querySelector('#backupBtn') && $('manageBtn').hidden && !$('compareBtn'), 'Orçamento sem download, sem gerenciar e sem comparar');
+      check([...doc().querySelectorAll('.tabs button')].map((b) => b.id).join() === 'tabBalanco,tabCategorias,tabOrcamento', 'três abas na ordem Balanço, Categorias, Orçamento');
       $('tabBalanco').click();
       const box = (el) => el.getBoundingClientRect();
       const titleCenter = box($('monthLabel')).left + box($('monthLabel')).width / 2;
@@ -157,12 +161,16 @@
       await wait(250);
       check(!!historyRow('Emergência'), 'desfazer restaura');
 
-      $('tabOrcamento').click();
+      $('tabCategorias').click();
       await wait(100);
       const orcamentoCenter = box($('monthLabel')).left + box($('monthLabel')).width / 2;
       const orcamentoView = box($('view')).left + box($('view')).width / 2;
-      check(text('monthLabel') === monthLabel(month) && Math.abs(orcamentoCenter - orcamentoView) < 1, `mês centralizado também em Orçamento e Categorias (diferença ${Math.abs(orcamentoCenter - orcamentoView).toFixed(1)}px)`);
+      check(text('monthLabel') === monthLabel(month) && Math.abs(orcamentoCenter - orcamentoView) < 1, `mês centralizado também em Categorias (diferença ${Math.abs(orcamentoCenter - orcamentoView).toFixed(1)}px)`);
       check(doc().defaultView.getComputedStyle($('compareBtn')).fontSize === '13px', 'botão comparar compacto');
+      check(doc().querySelector('#chartPopBtn') && (() => { $('chartPopBtn').click(); const sel = doc().querySelector('#chartPop [data-value="sub"]'); const ok = sel?.getAttribute('aria-selected') === 'true'; $('chartPopBtn').click(); return ok; })(), 'rosca abre em Subcategorias');
+      $('chartPopBtn').click();
+      doc().querySelector('#chartPop [data-value="main"]').click();
+      await wait(50);
       check(doc().querySelectorAll('.donut .segment').length === 3, 'rosca com 3 categorias');
       check(money(doc().querySelector('.donut-center')).includes('450,50'), 'rosca soma as despesas');
       const card = (id) => doc().querySelector(`[data-category="${id}"]`);
@@ -186,7 +194,7 @@
       check(card('despesas-fixas').querySelector('.cat-body > div').offsetHeight === 0, 'card recolhido fecha de verdade');
       card('despesas-fixas').querySelector('.cat-arrow').click();
 
-      await openManage('manageTabCats');
+      await openManage();
       const tagOf = (name) => [...doc().querySelectorAll('.manage-row')].find((r) => r.querySelector('.manage-name').textContent === name);
       check(tagOf('Despesas fixas').textContent.includes('Principal') && !tagOf('Uber').querySelector('.tag') && !tagOf('Emergência').querySelector('.tag'), 'só a categoria principal tem etiqueta');
       await newCategory('main', 'Pets');
@@ -215,10 +223,13 @@
       await confirmOk();
       check(!tagOf('Academia'), 'categoria sai da lista');
 
-      $('manageTabBudget').click();
-      await wait(50);
-      check(!!doc().querySelector('[data-budget="emergencia"] input') && !!doc().querySelector('[data-budget="uber"] input') && !!doc().querySelector('[data-budget="despesas-variaveis"]') && !$('budget-despesas-variaveis'), 'orçamento: principal sem caixa, subcategorias e Emergência com caixa');
+      check(!$('manageDialog').querySelector('[data-budget]') && !$('manageTabBudget'), 'Gerenciar não tem mais orçamento');
       closeManage();
+      $('tabOrcamento').click();
+      await wait(100);
+      check(!!doc().querySelector('[data-budget="emergencia"] input') && !!doc().querySelector('[data-budget="uber"] input') && !!doc().querySelector('[data-budget="despesas-variaveis"]') && !$('budget-despesas-variaveis'), 'orçamento: principal sem caixa, subcategorias e Emergência com caixa');
+      $('tabCategorias').click();
+      await wait(100);
 
       card('despesas-fixas');
       check(money(card('despesas-fixas')).includes('150,00'), 'excluir categoria preserva o total do mês');
@@ -235,13 +246,12 @@
       $('txCancel').click();
       $('tabOrcamento').click();
       await wait(100);
-
-      await openManage('manageTabBudget');
       fill('budget-uber', '200,00');
       await wait(250);
       check($('budget-uber').value === '200,00', 'orçamento salvo');
       check(!doc().querySelector('.budget-stats') && !doc().querySelector('[data-budget="uber"] .over'), 'orçamento mostra só nome, ícone e valor');
-      closeManage();
+      $('tabCategorias').click();
+      await wait(100);
       check(money(doc().querySelector('.donut-center')).includes('450,50'), 'orçamento não duplica o total de despesas');
 
       await replaceAll({
@@ -267,7 +277,7 @@
         request.onerror = () => reject(request.error);
       });
       check(stored.join() === 'i1', 'registro anterior a outubro é apagado');
-      $('tabOrcamento').click();
+      $('tabCategorias').click();
       await wait(100);
 
 

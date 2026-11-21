@@ -1,7 +1,7 @@
 import { migrateV1 } from './categories.js';
 
 const DB_NAME = 'financas-pessoais';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const FRESH_INSTALL = 'fresh-install';
 
 const promisify = (request) => new Promise((resolve, reject) => {
@@ -26,7 +26,10 @@ function upgrade(db, tx, oldVersion) {
     db.createObjectStore('categories', { keyPath: 'id' });
     db.createObjectStore('meta');
   }
-  db.createObjectStore('budgets', { keyPath: 'id' });
+  if (oldVersion < 2) db.createObjectStore('budgets', { keyPath: 'id' });
+  // Versão 3: despesas futuras (previstas para o mês, ainda não pagas).
+  if (oldVersion < 3) db.createObjectStore('planned', { keyPath: 'id' });
+  if (oldVersion >= 2) return;
 
   const transactions = tx.objectStore('transactions');
   const categories = tx.objectStore('categories');
@@ -68,13 +71,14 @@ async function write(stores, fn) {
 }
 
 export async function loadAll() {
-  const tx = (await open()).transaction(['transactions', 'categories', 'budgets']);
-  const [transactions, categories, budgets] = await Promise.all([
+  const tx = (await open()).transaction(['transactions', 'categories', 'budgets', 'planned']);
+  const [transactions, categories, budgets, planned] = await Promise.all([
     promisify(tx.objectStore('transactions').getAll()),
     promisify(tx.objectStore('categories').getAll()),
     promisify(tx.objectStore('budgets').getAll()),
+    promisify(tx.objectStore('planned').getAll()),
   ]);
-  return { transactions, categories, budgets };
+  return { transactions, categories, budgets, planned };
 }
 
 export const putTx = (t) => write('transactions', (tx) => tx.objectStore('transactions').put(t));
@@ -82,15 +86,30 @@ export const deleteTx = (id) => write('transactions', (tx) => tx.objectStore('tr
 export const putCategory = (c) => write('categories', (tx) => tx.objectStore('categories').put(c));
 export const deleteBudget = (id) => write('budgets', (tx) => tx.objectStore('budgets').delete(id));
 
+export const putPlanned = (p) => write('planned', (tx) => tx.objectStore('planned').put(p));
+export const putPlannedMany = (items) => write('planned', (tx) => items.forEach((p) => tx.objectStore('planned').put(p)));
+export const deletePlanned = (id) => write('planned', (tx) => tx.objectStore('planned').delete(id));
+// "Paguei": a despesa futura vira movimentação de verdade, na mesma transação.
+export const payPlanned = (plannedId, t) => write(['planned', 'transactions'], (tx) => {
+  tx.objectStore('planned').delete(plannedId);
+  tx.objectStore('transactions').put(t);
+});
+// Desfaz o "Paguei".
+export const unpayPlanned = (p, txId) => write(['planned', 'transactions'], (tx) => {
+  tx.objectStore('transactions').delete(txId);
+  tx.objectStore('planned').put(p);
+});
+
 export const putBudgets = (budgets) =>
   write('budgets', (tx) => budgets.forEach((b) => tx.objectStore('budgets').put(b)));
 
 // Categorias com movimentações são só arquivadas, para o histórico continuar íntegro.
-export const removeCategories = ({ archived, removedIds, budgetIds }) =>
-  write(['categories', 'budgets'], (tx) => {
+export const removeCategories = ({ archived, removedIds, budgetIds, plannedIds = [] }) =>
+  write(['categories', 'budgets', 'planned'], (tx) => {
     archived.forEach((c) => tx.objectStore('categories').put(c));
     removedIds.forEach((id) => tx.objectStore('categories').delete(id));
     budgetIds.forEach((id) => tx.objectStore('budgets').delete(id));
+    plannedIds.forEach((id) => tx.objectStore('planned').delete(id));
   });
 
 // Grava os registros só se a chave ainda não estiver marcada, tudo na mesma transação.
@@ -125,15 +144,17 @@ export async function isFreshInstall() {
   return !!(await promisify(tx.objectStore('meta').get(FRESH_INSTALL)));
 }
 
-export const deleteRecords = (txIds, budgetIds) =>
-  write(['transactions', 'budgets'], (tx) => {
+export const deleteRecords = (txIds, budgetIds, plannedIds = []) =>
+  write(['transactions', 'budgets', 'planned'], (tx) => {
     txIds.forEach((id) => tx.objectStore('transactions').delete(id));
     budgetIds.forEach((id) => tx.objectStore('budgets').delete(id));
+    plannedIds.forEach((id) => tx.objectStore('planned').delete(id));
   });
 
-export const replaceAll = ({ transactions, categories, budgets }) =>
-  write(['transactions', 'categories', 'budgets'], (tx) => {
+export const replaceAll = ({ transactions, categories, budgets, planned = [] }) =>
+  write(['transactions', 'categories', 'budgets', 'planned'], (tx) => {
     fillStore(tx.objectStore('transactions'), transactions);
     fillStore(tx.objectStore('categories'), categories);
     fillStore(tx.objectStore('budgets'), budgets);
+    fillStore(tx.objectStore('planned'), planned);
   });

@@ -32,12 +32,15 @@ const HINTS = {
 // O reconhecedor confunde "Pix" com palavras parecidas ("picos", "pica", "pics", "pique"...): todas viram "Pix".
 // Vale só para a palavra inteira ("picolé", "picanha" e "pista" ficam como estão).
 const PIX_WORDS = ['pix', 'pixe', 'pixi', 'pixs', 'piks', 'pics', 'picx', 'pick', 'picks', 'pik', 'pike', 'pikes', 'piki',
-  'pique', 'piques', 'piqui', 'piquis', 'pico', 'picos', 'pica', 'picas', 'peak', 'peaks'];
-const PIX = new RegExp(`(?<![\\p{L}\\d])(?:${PIX_WORDS.map((w) => w.replace(/i/g, '[ií]').replace(/o/g, '[oó]').replace(/a/g, '[aá]')).join('|')})(?![\\p{L}\\d])`, 'giu');
-export const fixPix = (text) => text.replace(PIX, 'Pix');
+  'pique', 'piques', 'piqui', 'piquis', 'pico', 'picos', 'pica', 'picas', 'peak', 'peaks',
+  'pixel', 'pixels', 'pixe', 'pixes', 'pixie', 'pixy', 'pixx', 'pex', 'pexe', 'piks', 'piquês'];
+const PIX = new RegExp(`(?<![\\p{L}\\d])(?:${[...new Set(PIX_WORDS)].map((w) => w.replace(/i/g, '[ií]').replace(/o/g, '[oó]').replace(/a/g, '[aá]')).join('|')})(?![\\p{L}\\d])`, 'giu');
+// Soletrado: "p i x", "p.i.x", "p-i-x", "pê i xis", "p i xis".
+const PIX_SPELLED = /(?<![\p{L}\d])p[eê]?[\s.\-]+[ií][\s.\-]+(?:x|xis)(?![\p{L}\d])\.?/giu;
+export const fixPix = (text) => text.replace(PIX_SPELLED, 'Pix').replace(PIX, 'Pix');
 
 const INCOME = /(?<![a-z])(recebi|ganhei|receita|entrada|salario|recebimento|pix recebido)(?![a-z])/;
-const FILLER = new Set(['gastei', 'paguei', 'comprei', 'despesa', 'gasto', 'pagamento', 'recebi', 'ganhei', 'receita', 'entrada',
+const FILLER = new Set(['gastei', 'paguei', 'pagar', 'comprei', 'valor', 'no valor', 'lancar', 'lanca', 'lance', 'registrar', 'registra', 'anotar', 'anota', 'categoria', 'dei', 'mandei', 'enviei', 'transferi', 'fiz', 'despesa', 'gasto', 'pagamento', 'recebi', 'ganhei', 'receita', 'entrada',
   'de', 'do', 'da', 'no', 'na', 'em', 'com', 'o', 'a', 'os', 'as', 'pra', 'para', 'um', 'uma', 'reais', 'real', 'r$', 'centavos', 'e']);
 
 const UNITS = { zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9,
@@ -184,12 +187,108 @@ function cleanDescription(original, n) {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
 }
 
+// "Pagar despesa futura": abre a lista das despesas futuras para escolher qual está sendo paga.
+const PAY_PLANNED = /(?<![a-z])(pagar|paguei|pago|pagando|quitar|quitei|dar baixa n?a?|baixar)( a| uma| na| numa)? (despesas? futuras?|contas? futuras?|despesas? prevista?s?|contas? a pagar)(?![a-z])/;
+
+// Despesa futura pela voz: "despesa futura de 57,60 por mês até fevereiro em gastos pessoais".
+const PLANNED = /(?<![a-z])(despesas? futuras?|gastos? futuros?|contas? futuras?|futuras?|futuros?|a pagar|vou pagar|agendad[ao]s?|previst[ao]s?)(?![a-z])/g;
+const MONTHLY = /(?<![a-z])(por mes|todo mes|todos os meses|ao mes|mensal|mensalmente|cada mes)(?![a-z])/g;
+const MONTHS = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const UNTIL = new RegExp(`(?<![a-z])ate (?:o mes de |o fim de |o final de |)(${MONTHS.join('|')})(?: de (\\d{4}))?(?![a-z])`);
+const COUNT_WORDS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12 };
+const FOR_MONTHS = new RegExp(`(?<![a-z])(?:por|durante|nos proximos|pelos proximos|pelos|nos) (\\d{1,2}|${Object.keys(COUNT_WORDS).join('|')}) meses(?![a-z])`);
+const MAX_MONTHS = 24;
+// Datas avulsas: "24 de novembro, 8 e 22 de dezembro", "dia 24/11". Dias soltos antes de um mês herdam esse mês.
+const DAY_LIST = `\\d{1,2}(?:\\s*(?:,|e)\\s*(?:dia\\s+)?\\d{1,2})*`;
+const DATE_WORDS = new RegExp(`(?<![\\d.,])(${DAY_LIST})\\s+de\\s+(${MONTHS.join('|')})(?:\\s+de\\s+(\\d{4}))?(?![a-z])`, 'g');
+const DATE_NUM = /(?<![\d.,])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?![\d])/g;
+const DATE_FILLER = /(?<![a-z])(nas datas|na data|nos dias|no dia|datas|data|dias|dia|cada uma|cada um|cada)(?![a-z])/g;
+const pad2 = (x) => String(x).padStart(2, '0');
+
+// Ano da data: o mesmo do mês atual, ou o seguinte se a data já passou ("8 de fevereiro" dito em novembro).
+function fullDate(day, month, year, today) {
+  const y0 = year ? (year < 100 ? 2000 + year : year) : Number(today.slice(0, 4));
+  let date = `${y0}-${pad2(month)}-${pad2(day)}`;
+  if (!year && date < today) date = `${y0 + 1}-${pad2(month)}-${pad2(day)}`;
+  const [y, m, d] = date.split('-').map(Number);
+  const check = new Date(y, m - 1, d);
+  return check.getMonth() === m - 1 && check.getDate() === d ? date : null;
+}
+
+function readDates(n, today) {
+  const dates = [];
+  n = n.replace(DATE_WORDS, (whole, days, monthName, year) => {
+    const month = MONTHS.indexOf(monthName) + 1;
+    for (const d of days.match(/\d{1,2}/g)) {
+      const date = fullDate(Number(d), month, year && Number(year), today);
+      if (date) dates.push(date);
+    }
+    return ' '.repeat(whole.length);
+  });
+  n = n.replace(DATE_NUM, (whole, d, m, y) => {
+    const date = Number(m) >= 1 && Number(m) <= 12 ? fullDate(Number(d), Number(m), y && Number(y), today) : null;
+    if (!date) return whole;
+    dates.push(date);
+    return ' '.repeat(whole.length);
+  });
+  if (dates.length) n = n.replace(DATE_FILLER, (m) => ' '.repeat(m.length));
+  return { n, dates: [...new Set(dates)].sort() };
+}
+
+const monthAdd = (month, k) => {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 1 + k, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+const monthNow = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const dateNow = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+
+// Tira da frase as palavras de despesa futura e de repetição. Devolve a frase limpa e até que mês repetir.
+function readPlanned(n, month, today) {
+  let planned = false;
+  n = n.replace(PLANNED, (m) => { planned = true; return ' '.repeat(m.length); });
+  // Datas avulsas: viram despesas futuras em cada data (opção "Personalizada").
+  const found = readDates(n, today);
+  if (found.dates.length) return { n: found.n.replace(MONTHLY, (m) => ' '.repeat(m.length)), planned: true, untilMonth: null, dates: found.dates };
+  let untilMonth = null;
+  const until = UNTIL.exec(n);
+  if (until) {
+    const target = MONTHS.indexOf(until[1]) + 1;
+    const [y, m] = month.split('-').map(Number);
+    let year = until[2] ? Number(until[2]) : y;
+    if (!until[2] && target < m) year += 1; // "até fevereiro" dito em novembro é o do ano que vem
+    untilMonth = `${year}-${String(target).padStart(2, '0')}`;
+    n = blank(n, until.index, until.index + until[0].length);
+  } else {
+    const count = FOR_MONTHS.exec(n);
+    if (count) {
+      const k = /\d/.test(count[1]) ? Number(count[1]) : COUNT_WORDS[count[1]];
+      if (k >= 1) untilMonth = monthAdd(month, k - 1);
+      n = blank(n, count.index, count.index + count[0].length);
+    }
+  }
+  n = n.replace(MONTHLY, (m) => ' '.repeat(m.length));
+  if (untilMonth && (untilMonth < month || untilMonth > monthAdd(month, MAX_MONTHS - 1))) untilMonth = null;
+  // Repetição só faz sentido em despesa futura: "por mês até fevereiro" já indica uma.
+  if (untilMonth) planned = true;
+  return { n, planned, untilMonth: untilMonth && untilMonth > month ? untilMonth : null, dates: [] };
+}
+
 // cats: categorias em que uma despesa pode entrar (subcategorias e independentes, sem arquivadas).
 // mains: categorias principais, cada uma com suas subcategorias em .subs (para "... em despesas fixas internet").
-export function parseVoice(spoken, cats, mains = []) {
+// month: mês atual ('2026-11'), usado para "até fevereiro" e "por 3 meses".
+export function parseVoice(spoken, cats, mains = [], { month = monthNow(), today = dateNow() } = {}) {
   const original = fixPix(String(spoken ?? '').replace(/\s+/g, ' ').trim());
   let n = norm(original);
-  const type = INCOME.test(n) ? 'income' : 'expense';
+  if (PAY_PLANNED.test(n)) {
+    // Categoria citada ("pagar despesa futura de gastos pessoais") só filtra a lista.
+    const found = findCategory(n, cats) ?? findCategory(n, cats, partialPhraser(cats));
+    return { type: 'payPlanned', categoryId: found?.cat.id ?? null, heard: original };
+  }
+  const isIncome = INCOME.test(n);
+  let plan = { planned: false, untilMonth: null, dates: [] };
+  if (!isIncome) ({ n, ...plan } = readPlanned(n, month, today));
+  const type = isIncome ? 'income' : 'expense';
 
   let categoryId = null;
   if (type === 'expense') {
@@ -228,5 +327,8 @@ export function parseVoice(spoken, cats, mains = []) {
 
   // Na receita, "salário" e afins são o próprio assunto: ficam nos detalhes.
   const description = cleanDescription(original, type === 'income' ? n.replace(/(?<![a-z])(recebi|ganhei|receita|entrada|recebimento)(?![a-z])/g, (m) => ' '.repeat(m.length)) : n);
-  return { type, amountCents: amount?.cents ?? null, ambiguousCents: amount?.ambiguous ?? null, categoryId, description, heard: original };
+  return {
+    type: plan.planned ? 'planned' : type, untilMonth: plan.untilMonth, dates: plan.dates,
+    amountCents: amount?.cents ?? null, ambiguousCents: amount?.ambiguous ?? null, categoryId, description, heard: original,
+  };
 }

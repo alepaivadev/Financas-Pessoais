@@ -1,4 +1,4 @@
-const CACHE = 'financas-v56';
+const CACHE = 'financas-v81';
 
 const FILES = [
   './',
