@@ -1,6 +1,8 @@
 import { migrateV1 } from './categories.js';
+import { PAIS, PAIS_OWN_DB } from './edition.js';
 
-const DB_NAME = 'financas-pessoais';
+// A versão dos pais usa um banco próprio: no mesmo navegador, as duas versões não se misturam.
+const DB_NAME = PAIS && PAIS_OWN_DB ? 'financas-pais' : 'financas-pessoais';
 const DB_VERSION = 3;
 const FRESH_INSTALL = 'fresh-install';
 
@@ -84,6 +86,7 @@ export async function loadAll() {
 export const putTx = (t) => write('transactions', (tx) => tx.objectStore('transactions').put(t));
 export const deleteTx = (id) => write('transactions', (tx) => tx.objectStore('transactions').delete(id));
 export const putCategory = (c) => write('categories', (tx) => tx.objectStore('categories').put(c));
+export const putCategories = (cats) => write('categories', (tx) => cats.forEach((c) => tx.objectStore('categories').put(c)));
 export const deleteBudget = (id) => write('budgets', (tx) => tx.objectStore('budgets').delete(id));
 
 export const putPlanned = (p) => write('planned', (tx) => tx.objectStore('planned').put(p));

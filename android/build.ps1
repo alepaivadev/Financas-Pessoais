@@ -49,7 +49,10 @@ $manifest = "$build\AndroidManifest.xml"
 $xml = [IO.File]::ReadAllText("$here\AndroidManifest.xml")
 if ($Debuggable) { $xml = $xml.Replace('android:allowBackup="false"', 'android:allowBackup="false" android:debuggable="true"') }
 [IO.File]::WriteAllText($manifest, $xml)
+# Finanças Low Features: outro app (pacote br.financas.pais). O R.java continua em br.financas.pessoais
+# e o aapt2 completa os nomes das telas com o pacote original.
 Run "$tools\aapt2.exe" @('link', '-o', "$build\base.apk", '-I', $androidJar, '--manifest', $manifest,
+  '--rename-manifest-package', 'br.financas.pais',
   '--java', "$build\gen", "$build\res.zip", "$build\res-extra.zip")
 
 # Código.

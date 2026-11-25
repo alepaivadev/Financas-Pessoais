@@ -73,6 +73,13 @@ export const ICON_LIBRARY = [
   ['outros', 'Outros', `M3 12V4h8l10 10-8 8z${dot(7.5, 8, 1.4)}`],
 ];
 
+// Versão dos pais: ícones oferecidos no cadastro de categoria (21 dos 52, um por assunto). A versão normal
+// continua com os 52. Os outros continuam desenhando as categorias que já os usam.
+export const PICKER_ICONS = [
+  'casa', 'luz', 'agua', 'internet', 'mercado', 'restaurante', 'carro', 'onibus', 'viagem', 'saude',
+  'academia', 'beleza', 'pet', 'roupa', 'educacao', 'lazer', 'assinatura', 'cartao', 'investimento', 'emergencia', 'outros',
+];
+
 const BY_KEY = new Map(ICON_LIBRARY.map(([key, label, path]) => [key, { key, label, path }]));
 export const iconInfo = (key) => BY_KEY.get(key) ?? null;
 export const DEFAULT_ICON = 'outros';

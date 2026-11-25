@@ -58,7 +58,13 @@ const FILE_GLYPHS = {
   'vestuario.svg': 'roupa',
   'ic_uber.jpg': 'carro',
   'outros.svg': 'lanche',
+  'emergencia.svg': 'emergencia',
+  'despesas-fixas.svg': 'casa',
+  'despesas-variaveis.svg': 'compras',
 };
+
+// Desenho da biblioteca equivalente ao arquivo de ícone de uma categoria antiga (ou null).
+export const fileGlyph = (id) => FILE_GLYPHS[FILES[id]] ?? null;
 
 // Chamado sempre que as categorias são carregadas.
 export function registerCategories(cats) {

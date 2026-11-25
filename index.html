@@ -69,7 +69,7 @@
       <p class="voice-heard" id="txHeard" hidden></p>
       <div class="pay-box" id="txPayBox" hidden></div>
       <label class="field">Valor (R$)
-        <input id="txAmount" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+        <input id="txAmount" inputmode="numeric" autocomplete="off" placeholder="0,00" required>
       </label>
       <div class="field" id="txCatField">
         <span id="txCatLabel">Categoria</span>
@@ -136,7 +136,6 @@
         <legend>Tipo</legend>
         <label><input type="radio" name="catKind" value="main" checked> Categoria principal</label>
         <label><input type="radio" name="catKind" value="sub"> Subcategoria</label>
-        <label><input type="radio" name="catKind" value="independent"> Categoria independente</label>
       </fieldset>
       <label class="field">Nome
         <input id="catName" maxlength="60" autocomplete="off">

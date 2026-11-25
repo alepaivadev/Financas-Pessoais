@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Finanças Low Features: o build.ps1 renomeia o pacote para br.financas.pais (outro app, com dados próprios).
+     O código Java continua em br.financas.pessoais. -->
 <!-- Sem permissão de INTERNET: o Android impede o app de enviar dados para fora do aparelho. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="br.financas.pessoais"
-    android:versionCode="14"
-    android:versionName="2.3">
+    android:versionCode="3"
+    android:versionName="1.2">
 
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
 
@@ -35,7 +37,7 @@
             android:name=".VoiceActivity"
             android:theme="@style/VoiceTheme"
             android:exported="false"
-            android:taskAffinity="br.financas.pessoais.voz"
+            android:taskAffinity="br.financas.pais.voz"
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"

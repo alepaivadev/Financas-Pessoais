@@ -277,17 +277,18 @@ function readPlanned(n, month, today) {
 // cats: categorias em que uma despesa pode entrar (subcategorias e independentes, sem arquivadas).
 // mains: categorias principais, cada uma com suas subcategorias em .subs (para "... em despesas fixas internet").
 // month: mês atual ('2026-11'), usado para "até fevereiro" e "por 3 meses".
-export function parseVoice(spoken, cats, mains = [], { month = monthNow(), today = dateNow() } = {}) {
+// planned: false desliga despesas futuras e "pagar despesa futura" (versão dos pais).
+export function parseVoice(spoken, cats, mains = [], { month = monthNow(), today = dateNow(), planned = true } = {}) {
   const original = fixPix(String(spoken ?? '').replace(/\s+/g, ' ').trim());
   let n = norm(original);
-  if (PAY_PLANNED.test(n)) {
+  if (planned && PAY_PLANNED.test(n)) {
     // Categoria citada ("pagar despesa futura de gastos pessoais") só filtra a lista.
     const found = findCategory(n, cats) ?? findCategory(n, cats, partialPhraser(cats));
     return { type: 'payPlanned', categoryId: found?.cat.id ?? null, heard: original };
   }
   const isIncome = INCOME.test(n);
   let plan = { planned: false, untilMonth: null, dates: [] };
-  if (!isIncome) ({ n, ...plan } = readPlanned(n, month, today));
+  if (!isIncome && planned) ({ n, ...plan } = readPlanned(n, month, today));
   const type = isIncome ? 'income' : 'expense';
 
   let categoryId = null;
