@@ -115,10 +115,11 @@
 
       $('fab').click();
       $('addExpense').click();
-      const groups = [...$('txCat').querySelectorAll('optgroup')];
-      check(groups.map((g) => g.label).join() === 'Despesas fixas,Despesas variáveis,Emergência', 'despesa agrupa por categoria principal (Emergência virou principal)');
-      check(groups[0].children.length === 6 && groups[1].children.length === 2, 'subcategorias no cadastro');
-      check(![...$('txCat').children].some((o) => o.tagName === 'OPTION' && o.textContent === 'Emergência') && [...$('txCat').querySelectorAll('optgroup[label="Emergência"] option')].some((o) => o.value === 'emergencia'), 'Emergência fica dentro da principal Emergência');
+      // 2.0.1: sem subcategorias. As subcategorias antigas viram categorias principais e as principais que só agrupavam saem.
+      const catValues = [...$('txCat').options].map((o) => o.value).filter(Boolean);
+      check(!$('txCat').querySelector('optgroup') && catValues.length === 9, `despesa lista só categorias, sem grupos (${catValues.length})`);
+      check(['academia', 'uber', 'emergencia'].every((id) => catValues.includes(id)), 'subcategorias antigas e Emergência viraram categorias');
+      check(!catValues.includes('despesas-fixas') && !catValues.includes('despesas-variaveis'), 'principais antigas, que só agrupavam, saíram');
       check($('txDateField').hidden, 'despesa não pede data');
       $('txAmount').value = '10';
       $('txForm').requestSubmit();
@@ -134,7 +135,7 @@
       check(doc().querySelector('#history .tx-row .tx-name').textContent === 'Emergência', 'mais recente no topo');
       check(historyRow('Uber').querySelector('.tx-value').classList.contains('expense'), 'despesa marcada em vermelho');
       check(historyRow('Receita').querySelector('.tx-value').classList.contains('income'), 'receita marcada em verde');
-      check(historyRow('Uber').textContent.includes('Despesas variáveis'), 'histórico mostra a categoria principal');
+      check(!historyRow('Uber').textContent.includes('Despesas variáveis'), 'histórico não mostra grupo de categoria');
 
       frame.contentWindow.location.reload();
       await wait(300);
@@ -167,53 +168,36 @@
       const orcamentoView = box($('view')).left + box($('view')).width / 2;
       check(text('monthLabel') === monthLabel(month) && Math.abs(orcamentoCenter - orcamentoView) < 1, `mês centralizado também em Categorias (diferença ${Math.abs(orcamentoCenter - orcamentoView).toFixed(1)}px)`);
       check(doc().defaultView.getComputedStyle($('compareBtn')).fontSize === '13px', 'botão comparar compacto');
-      check(doc().querySelector('#chartPopBtn') && (() => { $('chartPopBtn').click(); const sel = doc().querySelector('#chartPop [data-value="sub"]'); const ok = sel?.getAttribute('aria-selected') === 'true'; $('chartPopBtn').click(); return ok; })(), 'rosca abre em Subcategorias');
       $('chartPopBtn').click();
-      doc().querySelector('#chartPop [data-value="main"]').click();
+      check(!doc().querySelector('#chartPop [data-value="sub"]') && !doc().querySelector('#chartPop [data-value="main"]'), 'rosca sem a opção Categorias/Subcategorias');
+      $('chartPopBtn').click();
       await wait(50);
       check(doc().querySelectorAll('.donut .segment').length === 3, 'rosca com 3 categorias');
       check(money(doc().querySelector('.donut-center')).includes('450,50'), 'rosca soma as despesas');
       const card = (id) => doc().querySelector(`[data-category="${id}"]`);
-      check(['despesas-fixas', 'despesas-variaveis', 'emergencia-principal'].every(card), 'três cards principais (Emergência convertida)');
-      check(money(card('despesas-fixas')).includes('150,00') && money(card('despesas-variaveis')).includes('250,50'), 'total por categoria');
-      check(!!card('emergencia-principal').querySelector('.cat-arrow'), 'Emergência agora tem seta (tem a subcategoria Emergência)');
-      card('despesas-fixas').querySelector('.cat-arrow').click();
-      check(card('despesas-fixas').classList.contains('open') && !card('despesas-variaveis').classList.contains('open'), 'expandir não afeta os outros cards');
-      check(card('despesas-fixas').querySelectorAll('.sub-row').length === 6, 'mostra as subcategorias');
-      const academia = card('despesas-fixas').querySelector('[data-sub="academia"]');
-      check(!!academia.querySelector('.sub-bar') && !money(academia.querySelector('.sub-row')).includes('150,00'), 'subcategoria mostra barra, não valor');
-      academia.querySelector('.sub-row').click();
-      check($('subDialog').open && money($('subTotal')).includes('150,00') && money($('subBody').querySelector('.sub-txs')).includes('150,00'), 'tocar na subcategoria abre janela com total e registros');
-      $('subClose').click();
-      check(!$('subDialog').open, 'fechar a janela da subcategoria');
-      await wait(300);
-      check(card('despesas-fixas').querySelector('.cat-body > div').offsetHeight > 200, 'card expandido abre de verdade');
-      card('despesas-fixas').querySelector('.cat-arrow').click();
-      check(!card('despesas-fixas').classList.contains('open'), 'recolher');
-      await wait(300);
-      check(card('despesas-fixas').querySelector('.cat-body > div').offsetHeight === 0, 'card recolhido fecha de verdade');
-      card('despesas-fixas').querySelector('.cat-arrow').click();
+      check(['uber', 'academia', 'emergencia'].every(card) && !card('despesas-fixas') && !card('emergencia-principal'), 'um card por categoria, sem principais de grupo');
+      check(money(card('academia')).includes('150,00') && money(card('uber')).includes('250,50'), 'total por categoria');
+      check(!doc().querySelector('.cat-arrow') && !doc().querySelector('.sub-row'), 'cards sem seta e sem subcategorias');
 
       await openManage();
       const tagOf = (name) => [...doc().querySelectorAll('.manage-row')].find((r) => r.querySelector('.manage-name').textContent === name);
-      check(tagOf('Despesas fixas').textContent.includes('Principal') && !tagOf('Uber').querySelector('.tag') && !doc().querySelector('[data-manage="emergencia"] .tag') && !!doc().querySelector('[data-manage="emergencia-principal"] .tag'), 'só a categoria principal tem etiqueta');
+      check(!doc().querySelector('.manage-row .tag') && !doc().querySelector('.manage-row.child') && !doc().querySelector('.add-sub') && !$('newSubcategory'), 'Gerenciar sem subcategorias');
+      $('newCategory').click();
+      check($('catKindField').hidden && $('catParentField').hidden && !$('catColorField').hidden, 'nova categoria não pede tipo nem principal, só cor e ícone');
+      $('catCancel').click();
       await newCategory('main', 'Pets');
-      await newCategory('sub', 'Ração', doc().querySelector('#catParent option:last-child').value);
-      check(!doc().querySelector('input[name="catKind"][value="independent"]'), 'não existe mais categoria independente');
       await newCategory('main', 'Viagem');
-      check(!!tagOf('Pets') && tagOf('Ração').classList.contains('child') && !!tagOf('Viagem'), 'cria principal e subcategoria');
+      check(!!tagOf('Pets') && !!tagOf('Viagem') && !tagOf('Pets').classList.contains('child'), 'cria categorias');
       await newCategory('main', 'viagem');
       check($('catDialog').open && text('catError').includes('Já existe'), 'nome repetido é recusado');
       $('catCancel').click();
 
-      doc().querySelector('[aria-label="Editar Ração"]').click();
-      check($('catKindField').hidden && !$('catParentField').hidden, 'edição da subcategoria mostra a principal');
+      doc().querySelector('[aria-label="Editar Pets"]').click();
+      check($('catKindField').hidden && $('catParentField').hidden, 'edição não mostra principal');
       $('catName').value = 'Veterinário';
-      $('catParent').value = 'despesas-variaveis';
       $('catForm').requestSubmit();
       await wait(250);
-      const rows = [...doc().querySelectorAll('.manage-row')].map((r) => r.querySelector('.manage-name').textContent);
-      check(rows.indexOf('Veterinário') > rows.indexOf('Despesas variáveis') && rows.indexOf('Veterinário') < rows.indexOf('Emergência'), 'renomeia e troca a categoria principal');
+      check(!!tagOf('Veterinário') && !tagOf('Pets'), 'renomeia');
 
       doc().querySelector('[aria-label="Excluir Internet"]').click();
       await wait(250);
@@ -230,15 +214,13 @@
       await wait(100);
       check(!doc().querySelector('[data-budget="uber"]') && !!doc().querySelector('[data-add="outras"]'), 'orçamento: sem orçamentos, só o botão de cadastrar');
       doc().querySelector('[data-add="outras"] .budget-add').click();
-      check(!!doc().querySelector('[data-add="outras"] [data-value="emergencia"]') && !!doc().querySelector('[data-add="outras"] [data-value="uber"]') && !doc().querySelector('[data-add="outras"] [data-value="despesas-variaveis"]'), 'o + lista subcategorias e Emergência, não a principal');
+      check(!!doc().querySelector('[data-add="outras"] [data-value="emergencia"]') && !!doc().querySelector('[data-add="outras"] [data-value="uber"]') && !doc().querySelector('[data-add="outras"] .cat-group-title'), 'o + lista as categorias, sem grupos');
       doc().querySelector('[data-add="outras"] [data-value="uber"]').click();
-      check(!!doc().querySelector('[data-budget="despesas-variaveis"]') && !!$('budget-uber') && !$('budget-despesas-variaveis'), 'escolher pelo + mostra a principal e a caixa da subcategoria');
+      check(!!$('budget-uber') && !doc().querySelector('.budget-row.child'), 'escolher pelo + mostra a caixa da categoria');
       $('tabCategorias').click();
       await wait(100);
 
-      card('despesas-fixas');
-      check(money(card('despesas-fixas')).includes('150,00'), 'excluir categoria preserva o total do mês');
-      check([...card('despesas-fixas').querySelectorAll('.sub-row')].some((r) => r.textContent.includes('Academia')), 'excluída continua no mês em que teve gasto');
+      check(!!card('academia') && money(card('academia')).includes('150,00'), 'excluída continua no mês em que teve gasto');
       $('tabBalanco').click();
       await wait(100);
       check(!!historyRow('Academia'), 'histórico preserva a movimentação');

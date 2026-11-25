@@ -2,7 +2,14 @@
 
 App de controle financeiro pessoal para Android (APK) e navegador (PWA): receitas, despesas, categorias com ícones, orçamento mensal e lançamento por voz. Funciona 100% offline: não tem servidor, conta nem login, e os dados ficam só no aparelho.
 
-**Versão atual: 2.5** (versionCode 16) · Há também uma versão simplificada, a **Low Features**, na branch `financas-low-features`.
+**Branch `2.0.1`** (versionName 2.0.1, versionCode 17): a All Features 2.5 **sem subcategorias**. Toda categoria é principal e recebe as despesas direto. A versão com subcategorias continua na `main`, e a simplificada, a **Low Features**, na branch `financas-low-features`.
+
+### O que muda na 2.0.1
+
+- **Só categorias principais:** não existe mais "Nova subcategoria" nem o tipo no formulário de categoria. Cada categoria tem a sua cor e o seu ícone.
+- **Conversão automática ao abrir:** cada subcategoria vira uma categoria principal com o mesmo id, nome e ícone. Lançamentos, orçamentos e despesas futuras continuam ligados a ela. A primeira de cada grupo fica com a cor da principal antiga, e as outras ganham cores livres. A principal antiga, que só agrupava, sai.
+- **Gráfico de rosca** por categoria, sem a opção "Mostrar".
+- **Orçamento, despesas futuras e comprometido** ficam direto em cada categoria.
 
 ## Funcionalidades
 
@@ -10,13 +17,13 @@ App de controle financeiro pessoal para Android (APK) e navegador (PWA): receita
 - **Balanço do mês:** saldo, receitas e despesas, com período escolhível (hoje, esta semana, mês ou um dia específico) e histórico de movimentações com edição e exclusão. Abaixo do saldo, em transparente, o **saldo previsto** depois das despesas futuras do mês.
 - **Troca de mês:** toque no nome do mês para abrir a faixa com os meses (inclusive os próximos, para ver as despesas futuras); toque num mês ou arraste para os lados. Num mês futuro aparece "Voltar ao mês atual".
 - **Comparar meses:** escolha o mês a comparar numa lista, gráfico de linha do valor acumulado por dia (com até 3 meses a mais no gráfico) e o top 3 de despesas ou receitas de cada mês.
-- **Categorias em dois níveis:** só **categoria principal** e **subcategoria**. Categorias independentes antigas viram uma principal com uma subcategoria de mesmo nome, sem perder lançamentos. Uma instalação nova começa **sem nenhuma categoria**: cada pessoa cria as suas (botão de caneta em Categorias).
-- **Ícones e cores:** 52 ícones e 13 cores para escolher ao criar uma categoria. **Subcategorias herdam a cor da categoria principal automaticamente**; mudar a cor da principal muda todas as filhas.
-- **Aba Orçamento:** mostra só as subcategorias com orçamento no mês; o **+** embaixo de cada categoria principal cadastra nas que faltam. Só o mês atual é editável; meses passados ficam para consulta. "Copiar do mês anterior".
-- **Despesas futuras:** na aba Orçamento, cadastre o que ainda vai pagar, sem repetir, **mensalmente** até um mês ou em **datas personalizadas** (ex.: parcelas em 24/11, 08/12 e 22/12). Elas descontam do saldo previsto e aparecem como **comprometido** na subcategoria em que foram cadastradas. "Paguei" lança a despesa de verdade com um toque.
+- **Categorias em um nível só (2.0.1):** toda categoria é principal. Uma instalação nova começa **sem nenhuma categoria**: cada pessoa cria as suas (botão de caneta em Categorias).
+- **Ícones e cores:** 52 ícones e 13 cores para escolher ao criar uma categoria.
+- **Aba Orçamento:** mostra só as categorias com orçamento no mês; o **+** cadastra nas que faltam. Só o mês atual é editável; meses passados ficam para consulta. "Copiar do mês anterior".
+- **Despesas futuras:** na aba Orçamento, cadastre o que ainda vai pagar, sem repetir, **mensalmente** até um mês ou em **datas personalizadas** (ex.: parcelas em 24/11, 08/12 e 22/12). Elas descontam do saldo previsto e aparecem como **comprometido** na categoria em que foram cadastradas. "Paguei" lança a despesa de verdade com um toque.
 - **Pagar despesa futura com um toque:** ao lançar uma despesa nova, uma caixinha mostra as despesas futuras do mês; tocar numa delas já lança.
 - **Barras de orçamento** na aba Categorias: verde (até 70%), laranja (70% a 100%) e vermelha (acima de 100%), já contando o comprometido.
-- **Gráfico de rosca** por subcategoria (padrão) ou categoria principal, com as cores escolhidas.
+- **Gráfico de rosca** por categoria, com as cores escolhidas.
 - **Valor com vírgula automática:** os números entram pela direita ("123456" vira 1.234,56).
 - **Lançamento por voz** (sem IA e sem internet): entende frases como "gastei 17,95 no mercado", "recebi 1.500 de salário" ou "Pix de 84,99 internet", com valores em número ou por extenso. Também entende despesas futuras ("despesa futura de 57,60 por mês até fevereiro em gastos pessoais", "... na data 24 de novembro, 8 de dezembro, no valor de 21,68 cada uma") e "pagar despesa futura", que abre a lista para escolher qual foi paga. O formulário abre preenchido para confirmar.
 - **Widget "Lançar por voz"** na tela inicial do Android: um toque e já pode falar.

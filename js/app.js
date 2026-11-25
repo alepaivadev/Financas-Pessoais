@@ -2,7 +2,7 @@ import * as db from './db.js';
 import { CATEGORY_COLORS, categoryColor, categoryIcon, fileGlyph, registerCategories } from './category-icons.js';
 import { COLOR_PALETTE, DEFAULT_ICON, drawIcon, ICON_LIBRARY, PICKER_ICONS } from './icon-library.js';
 import { parseVoice } from './voice.js';
-import { PAIS } from './edition.js';
+import { FLAT, PAIS } from './edition.js';
 import { childrenOf, makeCategory, nextOrder, rootsOf } from './categories.js';
 import { donutChart, hideTooltip, lineChart } from './charts.js';
 import {
@@ -23,7 +23,7 @@ const state = {
   month: monthOf(today()),
   expanded: new Set(),
   // Gráfico de rosca: nível (mães ou subcategorias) e período (hoje, semana ou mês).
-  chart: { level: 'sub', period: 'month', day: null }, // a rosca abre em Subcategorias (desde 21/11)
+  chart: { level: FLAT ? 'main' : 'sub', period: 'month', day: null }, // a rosca abre em Subcategorias (desde 21/11)
   bal: { period: 'month', day: null }, // período do card Saldo
   pop: null, // id do menu de lápis aberto (sobrevive ao render)
   monthPop: false, // All Features: faixa de meses aberta ao tocar no nome do mês
@@ -1268,7 +1268,9 @@ function openNewCategory(preset) {
 
 const welcomeCard = () => h('section', { class: 'card welcome-card' },
   h('h2', {}, 'Crie suas categorias'),
-  h('p', { class: 'note' }, 'Comece com uma categoria principal (por exemplo, Casa) e depois crie as subcategorias dentro dela (Aluguel, Luz, Internet). As subcategorias usam a mesma cor da principal.'),
+  h('p', { class: 'note' }, FLAT
+    ? 'Crie uma categoria para cada tipo de gasto (por exemplo, Mercado, Aluguel, Transporte). Cada uma tem a sua cor e o seu ícone.'
+    : 'Comece com uma categoria principal (por exemplo, Casa) e depois crie as subcategorias dentro dela (Aluguel, Luz, Internet). As subcategorias usam a mesma cor da principal.'),
   h('button', { class: 'btn primary', type: 'button', id: 'welcomeNew', onClick: () => openNewCategory() }, '+ Nova categoria'));
 
 function viewCategorias() {
@@ -1292,8 +1294,9 @@ function viewCategorias() {
     monthBar(),
     h('section', { class: 'card donut-card' },
       editPop('chartPop', 'Opções do gráfico',
-        h('p', { class: 'pop-title' }, 'Mostrar'),
-        chartSeg({ main: 'Categorias', sub: 'Subcategorias' }, state.chart.level, (v) => { state.chart.level = v; }, 'Detalhe do gráfico'),
+        // 2.0.1: sem subcategorias, não há o que escolher em "Mostrar".
+        FLAT ? null : h('p', { class: 'pop-title' }, 'Mostrar'),
+        FLAT ? null : chartSeg({ main: 'Categorias', sub: 'Subcategorias' }, state.chart.level, (v) => { state.chart.level = v; }, 'Detalhe do gráfico'),
         h('p', { class: 'pop-title' }, 'Período'),
         periodPicker(state.chart, 'chartDay', 'Período do gráfico')),
       donutChart(segments, total, period === 'month' ? 'Despesas' : period === 'day' ? shortDate(state.chart.day) : PERIODS[period]),
@@ -1354,7 +1357,7 @@ function closeParentPicker() {
 }
 
 const selectedKind = () => $('catForm').elements.catKind.value;
-const formKind = () => catContext?.cat?.kind ?? selectedKind();
+const formKind = () => catContext?.cat?.kind ?? (FLAT ? 'independent' : selectedKind());
 const FALLBACK_COLOR = '#475569';
 
 // Cor que o ícone vai ter: subcategoria herda a da principal escolhida; as outras usam a cor marcada.
@@ -1430,7 +1433,7 @@ function openCatForm(cat = null, preset = {}) {
   $('catForm').reset();
   if (!cat && preset.kind) $('catForm').elements.catKind.value = preset.kind;
   $('catTitle').textContent = cat ? 'Editar categoria' : preset.kind === 'sub' ? 'Nova subcategoria' : 'Nova categoria';
-  $('catKindField').hidden = !!cat;
+  $('catKindField').hidden = !!cat || FLAT;
   $('catName').value = cat?.name ?? '';
   $('catError').textContent = '';
   fillParents(cat?.parentId ?? preset.parentId);
@@ -1496,7 +1499,7 @@ function manageRow(cat, child) {
     h('span', { class: 'manage-text' },
       h('span', { class: 'manage-name' }, cat.name),
       cat.kind === 'main' ? h('span', { class: 'tag' }, KIND_LABELS.main) : null),
-    cat.kind === 'main'
+    cat.kind === 'main' && !FLAT
       ? h('button', { class: 'icon-btn add-sub', type: 'button', 'aria-label': `Nova subcategoria em ${cat.name}`, title: 'Nova subcategoria', onClick: () => openCatForm(null, { kind: 'sub', parentId: cat.id }) }, icon('plus'))
       : null,
     h('button', { class: 'icon-btn', type: 'button', 'aria-label': `Editar ${cat.name}`, onClick: () => openCatForm(cat) }, icon('edit')),
@@ -1507,7 +1510,7 @@ const panelCategorias = () => [
   // Sem nenhuma categoria (primeira vez no app): o botão fica centralizado, com um aviso curto embaixo.
   h('div', { class: `panel-actions ${activeRoots().length ? '' : 'is-empty'}` },
     h('button', { class: 'btn primary', type: 'button', id: 'newCategory', onClick: () => openCatForm() }, '+ Nova categoria'),
-    activeRoots().some((c) => c.kind === 'main')
+    !FLAT && activeRoots().some((c) => c.kind === 'main')
       ? h('button', { class: 'btn', type: 'button', id: 'newSubcategory', onClick: () => openCatForm(null, { kind: 'sub' }) }, '+ Nova subcategoria')
       : null),
   activeRoots().length ? null : h('p', { class: 'note manage-empty' }, 'Nenhuma categoria ainda. Cadastre uma categoria para ela aparecer aqui.'),
@@ -1861,6 +1864,54 @@ async function convertIndependents() {
   return true;
 }
 
+// 2.0.1: toda categoria é principal. Cada subcategoria vira uma categoria sozinha (kind 'independent', que recebe
+// despesas direto) com o mesmo id, nome e ícone, então lançamentos, orçamentos e despesas futuras não mudam.
+// A primeira de cada grupo fica com a cor da principal antiga; as outras ganham cores ainda livres da paleta.
+// A principal antiga, que só agrupava, sai. Se algum registro apontar para ela, ela fica, também como categoria sozinha.
+async function flattenCategories() {
+  const mains = state.cats.filter((c) => c.kind === 'main');
+  const subs = state.cats.filter((c) => c.kind === 'sub');
+  if (!mains.length && !subs.length) return false;
+  const used = new Set(state.cats.filter((c) => c.kind === 'independent').map((c) => c.color ?? categoryColor(c.id)));
+  const freeColor = () => {
+    const pick = COLOR_PALETTE.find(([color]) => !used.has(color))?.[0] ?? COLOR_PALETTE[used.size % COLOR_PALETTE.length][0];
+    used.add(pick);
+    return pick;
+  };
+  const referenced = new Set([...state.txs, ...state.budgets, ...state.planned].map((r) => r.categoryId));
+  const roots = rootsOf(state.cats);
+  const changes = [];
+  const removedIds = [];
+  let order = 0;
+  for (const root of roots) {
+    if (root.kind !== 'main') { changes.push({ ...root, order: order++ }); continue; }
+    const mainColor = root.color ?? categoryColor(root.id) ?? null;
+    const kids = childrenOf(state.cats, root.id);
+    kids.forEach((sub, i) => {
+      let color = i === 0 && mainColor && !used.has(mainColor) ? mainColor : freeColor();
+      used.add(color);
+      const flat = { ...sub, kind: 'independent', parentId: null, order: order++, color };
+      // Sem ícone escolhido nem arquivo antigo: usa o desenho da principal antiga (ou o padrão).
+      if (!flat.icon && !categoryIcon(sub.id)) flat.icon = root.icon ?? DEFAULT_ICON;
+      changes.push(flat);
+    });
+    if (!kids.length || referenced.has(root.id)) {
+      const kept = { ...root, kind: 'independent', order: order++, color: mainColor ?? freeColor() };
+      if (!kept.icon && !categoryIcon(root.id)) kept.icon = DEFAULT_ICON;
+      changes.push(kept);
+    } else {
+      removedIds.push(root.id);
+    }
+  }
+  // Sub órfã (principal que não existe mais) também vira categoria sozinha.
+  for (const sub of subs) {
+    if (!roots.some((r) => r.id === sub.parentId)) changes.push({ ...sub, kind: 'independent', parentId: null, order: order++, color: freeColor() });
+  }
+  await db.putCategories(changes);
+  if (removedIds.length) await db.removeCategories({ archived: [], removedIds, budgetIds: [], plannedIds: [] });
+  return true;
+}
+
 async function start() {
   bindEvents();
   if (!PAIS) {
@@ -1877,7 +1928,7 @@ async function start() {
   }
   try {
     await reload();
-    if (await convertIndependents()) await reload();
+    if (await (FLAT ? flattenCategories() : convertIndependents())) await reload();
     render();
     if (QUICK) startVoice();
   } catch (error) {

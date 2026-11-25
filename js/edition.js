@@ -5,3 +5,7 @@ export const PAIS = false;
 // PAIS_OWN_DB = false: a versão dos pais usa o mesmo banco da versão completa. É a "Low Features de atualização",
 // que instala por cima de um app completo já em uso (mesmo pacote) e mantém as categorias e movimentações.
 export const PAIS_OWN_DB = true;
+// FLAT = true: edição 2.0.1 (branch 2.0.1). Não existem subcategorias: toda categoria é principal e recebe as
+// despesas direto. Ao abrir, as subcategorias de quem já usava o app viram categorias principais (mesmo id, então
+// lançamentos, orçamentos e despesas futuras continuam ligados) e as principais que só agrupavam saem.
+export const FLAT = true;
