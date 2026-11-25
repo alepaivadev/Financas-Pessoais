@@ -1,4 +1,4 @@
-const CACHE = 'financas-v81';
+const CACHE = 'financas-v93';
 
 const FILES = [
   './',
@@ -7,6 +7,7 @@ const FILES = [
   'css/styles.css',
   'css/fonts/fraunces-700.woff2',
   'js/app.js',
+  'js/edition.js',
   'js/categories.js',
   'js/category-icons.js',
   'js/icon-library.js',

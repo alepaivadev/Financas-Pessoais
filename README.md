@@ -2,21 +2,22 @@
 
 App de controle financeiro pessoal para Android (APK) e navegador (PWA): receitas, despesas, categorias com ícones, orçamento mensal e lançamento por voz. Funciona 100% offline: não tem servidor, conta nem login, e os dados ficam só no aparelho.
 
-**Versão atual: 2.3** (versionCode 14)
+**Versão atual: 2.5** (versionCode 16) · Há também uma versão simplificada, a **Low Features**, na branch `financas-low-features`.
 
 ## Funcionalidades
 
 - **Três abas:** Balanço (esquerda), Categorias (meio) e Orçamento (direita).
 - **Balanço do mês:** saldo, receitas e despesas, com período escolhível (hoje, esta semana, mês ou um dia específico) e histórico de movimentações com edição e exclusão. Abaixo do saldo, em transparente, o **saldo previsto** depois das despesas futuras do mês.
-- **Meses futuros:** a seta avança para os próximos meses para ver as despesas futuras já cadastradas, com "Voltar ao mês atual".
+- **Troca de mês:** toque no nome do mês para abrir a faixa com os meses (inclusive os próximos, para ver as despesas futuras); toque num mês ou arraste para os lados. Num mês futuro aparece "Voltar ao mês atual".
 - **Comparar meses:** escolha o mês a comparar numa lista, gráfico de linha do valor acumulado por dia (com até 3 meses a mais no gráfico) e o top 3 de despesas ou receitas de cada mês.
-- **Categorias em dois níveis:** categoria principal com subcategorias, ou categoria independente. Uma instalação nova começa **sem nenhuma categoria**: cada pessoa cria as suas.
+- **Categorias em dois níveis:** só **categoria principal** e **subcategoria**. Categorias independentes antigas viram uma principal com uma subcategoria de mesmo nome, sem perder lançamentos. Uma instalação nova começa **sem nenhuma categoria**: cada pessoa cria as suas (botão de caneta em Categorias).
 - **Ícones e cores:** 52 ícones e 13 cores para escolher ao criar uma categoria. **Subcategorias herdam a cor da categoria principal automaticamente**; mudar a cor da principal muda todas as filhas.
-- **Aba Orçamento:** limites do mês por categoria (só o mês atual é editável; meses passados ficam para consulta) e "Copiar do mês anterior".
-- **Despesas futuras:** na aba Orçamento, cadastre o que ainda vai pagar, sem repetir, **mensalmente** até um mês ou em **datas personalizadas** (ex.: parcelas em 24/11, 08/12 e 22/12). Elas descontam do saldo previsto e aparecem como **comprometido** no orçamento de cada categoria. "Paguei" lança a despesa de verdade com um toque.
+- **Aba Orçamento:** mostra só as subcategorias com orçamento no mês; o **+** embaixo de cada categoria principal cadastra nas que faltam. Só o mês atual é editável; meses passados ficam para consulta. "Copiar do mês anterior".
+- **Despesas futuras:** na aba Orçamento, cadastre o que ainda vai pagar, sem repetir, **mensalmente** até um mês ou em **datas personalizadas** (ex.: parcelas em 24/11, 08/12 e 22/12). Elas descontam do saldo previsto e aparecem como **comprometido** na subcategoria em que foram cadastradas. "Paguei" lança a despesa de verdade com um toque.
 - **Pagar despesa futura com um toque:** ao lançar uma despesa nova, uma caixinha mostra as despesas futuras do mês; tocar numa delas já lança.
 - **Barras de orçamento** na aba Categorias: verde (até 70%), laranja (70% a 100%) e vermelha (acima de 100%), já contando o comprometido.
 - **Gráfico de rosca** por subcategoria (padrão) ou categoria principal, com as cores escolhidas.
+- **Valor com vírgula automática:** os números entram pela direita ("123456" vira 1.234,56).
 - **Lançamento por voz** (sem IA e sem internet): entende frases como "gastei 17,95 no mercado", "recebi 1.500 de salário" ou "Pix de 84,99 internet", com valores em número ou por extenso. Também entende despesas futuras ("despesa futura de 57,60 por mês até fevereiro em gastos pessoais", "... na data 24 de novembro, 8 de dezembro, no valor de 21,68 cada uma") e "pagar despesa futura", que abre a lista para escolher qual foi paga. O formulário abre preenchido para confirmar.
 - **Widget "Lançar por voz"** na tela inicial do Android: um toque e já pode falar.
 - **Backup** em arquivo JSON (menu de três pontinhos › Fazer backup).
@@ -33,6 +34,7 @@ O APK não pede nenhuma permissão, nem de internet, então o Android impede que
 |---|---|
 | `index.html`, `css/` | Página e estilos (fonte Fraunces, licença OFL em `css/fonts/`) |
 | `js/app.js` | Telas, formulários, navegação e backup |
+| `js/edition.js` | Liga a versão Low Features (`PAIS`); na main fica `false` |
 | `js/voice.js` | Interpretação da frase falada (valor, tipo, categoria e detalhes) |
 | `js/categories.js` | Hierarquia de categorias e migração da versão 1 |
 | `js/category-icons.js` | Ícone e cor de cada categoria (`categoryIcon`, `categoryColor`) |
@@ -77,7 +79,7 @@ Guarde essa pasta em lugar seguro. Uma atualização só instala por cima se for
 
 - Saldo = receitas − despesas. Valores gravados em centavos inteiros.
 - O controle começa em outubro de 2026 (`FIRST_MONTH` em `js/format.js`). Receitas e despesas não aceitam data futura; o que vai acontecer depois entra como **despesa futura**.
-- Despesas apontam para uma subcategoria ou categoria independente; o total de uma principal é a soma das subcategorias.
+- Despesas apontam para uma subcategoria; o total de uma principal é a soma das subcategorias.
 - Excluir uma categoria com movimentações só a arquiva: ela some dos cadastros, mas continua no histórico e nos totais.
 - Orçamentos são por mês e por categoria. Um mês futuro sem orçamento próprio usa o do mês atual como referência.
 - Despesas futuras ficam no IndexedDB (versão 3 do banco, store `planned`); a atualização da versão 2 só cria esse espaço vazio, sem mexer no resto.

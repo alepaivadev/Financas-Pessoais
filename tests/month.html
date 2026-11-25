@@ -10,6 +10,8 @@
   <iframe id="app"></iframe>
   <script type="module">
     import { appDriver, deleteDatabase, makeReporter, wait } from './helpers.js';
+    import { replaceAll } from '../js/db.js';
+    import { DEFAULT_CATEGORIES } from '../js/categories.js';
 
     // Carrega o app real com um relógio simulado que o teste controla.
     window.fakeNow = new Date(2026, 9, 31, 23, 50).getTime();
@@ -38,6 +40,10 @@
       frame.srcdoc = html.replace('<head>', `<head><base href="${new URL('..', location)}">${clock}`);
       await wait(300);
       await ready();
+      // Instalação nova começa sem categorias (desde a 2.0): o teste cria as padrão e pede ao app para recarregar.
+      await replaceAll({ transactions: [], categories: DEFAULT_CATEGORIES, budgets: [] });
+      doc().dispatchEvent(new frame.contentWindow.Event('visibilitychange'));
+      await wait(300);
 
       check(text('monthLabel') === 'Outubro de 2026' && text('compareBtn') === 'Comparar', 'outubro é o mês atual');
       await addTx('income', '1.000');
@@ -69,13 +75,17 @@
       const budgetText = (id) => doc().querySelector(`[data-budget="${id}"] .budget-value`)?.textContent;
       $('tabOrcamento').click();
       await wait(100);
-      check(!$('budget-uber') && budgetText('uber') === 'Sem limite' && !$('copyBudgets'), 'mês encerrado: orçamento só para consulta');
+      check(!$('budget-uber') && !doc().querySelector('[data-budget="uber"]') && !$('copyBudgets') && !doc().querySelector('[data-add]'), 'mês encerrado: só consulta, sem orçamentos nem +');
       $('nextMonth').click();
       await wait(100);
+      const addBudget = (id) => { doc().querySelector('[data-add="outras"] .budget-add').click(); doc().querySelector(`[data-add="outras"] [data-value="${id}"]`).click(); };
+      addBudget('uber');
       fill('budget-uber', '300,00');
       await wait(250);
       check($('budget-uber').value === '300,00', 'mês atual: orçamento editável');
       $('tabBalanco').click();
+      await wait(100);
+      $('prevMonth').click(); // fica consultando outubro antes da virada para dezembro
       await wait(100);
 
       await setClock(new Date(2026, 11, 1, 8, 0));
@@ -87,7 +97,7 @@
       check(text('monthLabel') === 'Dezembro de 2026' && text('compareBtn') === 'Comparar', 'dezembro é o mês atual');
       $('tabOrcamento').click();
       await wait(100);
-      check(!$('budget-uber').value, 'orçamento de um mês não vale para outro');
+      check(!$('budget-uber'), 'orçamento de um mês não vale para outro');
       $('copyBudgets').click();
       await wait(250);
       check($('budget-uber').value === '300,00', 'copiar do mês anterior');

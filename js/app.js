@@ -1,7 +1,8 @@
 import * as db from './db.js';
-import { CATEGORY_COLORS, categoryColor, categoryIcon, registerCategories } from './category-icons.js';
-import { COLOR_PALETTE, DEFAULT_ICON, drawIcon, ICON_LIBRARY } from './icon-library.js';
+import { CATEGORY_COLORS, categoryColor, categoryIcon, fileGlyph, registerCategories } from './category-icons.js';
+import { COLOR_PALETTE, DEFAULT_ICON, drawIcon, ICON_LIBRARY, PICKER_ICONS } from './icon-library.js';
 import { parseVoice } from './voice.js';
+import { PAIS } from './edition.js';
 import { childrenOf, makeCategory, nextOrder, rootsOf } from './categories.js';
 import { donutChart, hideTooltip, lineChart } from './charts.js';
 import {
@@ -25,6 +26,9 @@ const state = {
   chart: { level: 'sub', period: 'month', day: null }, // a rosca abre em Subcategorias (desde 21/11)
   bal: { period: 'month', day: null }, // período do card Saldo
   pop: null, // id do menu de lápis aberto (sobrevive ao render)
+  monthPop: false, // All Features: faixa de meses aberta ao tocar no nome do mês
+  budgetPick: null, // lista do + aberta na aba Orçamento ('main:<id>' ou 'outras')
+  budgetPending: { month: null, ids: new Set() }, // escolhidas pelo +, ainda sem valor
 };
 
 const TITLES = { balanco: 'Balanço', categorias: 'Categorias', orcamento: 'Orçamento' };
@@ -190,7 +194,7 @@ function renderCatPicker() {
   const archived = findCat($('txCat').value);
   if (!groups.some(Boolean) && !archived?.archived) {
     $('txCatList').replaceChildren(h('p', { class: 'note cat-empty' },
-      'Nenhuma categoria para lançar ainda. Crie na aba Categorias: uma categoria independente ou uma principal com subcategorias.'));
+      'Nenhuma categoria para lançar ainda. Crie na aba Categorias uma categoria principal e as subcategorias dela.'));
     return;
   }
   $('txCatList').replaceChildren(...groups.filter(Boolean),
@@ -312,7 +316,8 @@ function handleVoice(text) {
     return;
   }
   const mains = activeRoots().filter((r) => r.kind === 'main').map((r) => ({ ...r, subs: activeChildren(r.id) }));
-  const result = parseVoice(text, voiceChoices(), mains, { month: state.currentMonth });
+  // Versão dos pais: sem despesas futuras, a voz só lança receita ou despesa.
+  const result = parseVoice(text, voiceChoices(), mains, { month: state.currentMonth, planned: !PAIS });
   if (result.type === 'payPlanned') { openPayDialog(result); return; }
   openTxForm(result.type, null, result);
 }
@@ -345,6 +350,16 @@ function startVoice() {
 window.onVoiceResult = (text) => handleVoice(text);
 window.onVoiceError = (message) => (QUICK ? closeQuick(message) : toast(message));
 window.onVoiceCancel = () => closeQuick();
+
+// Valor digitado como no caixa eletrônico: os números entram pela direita e a vírgula fica sempre
+// antes dos dois últimos ("1" → 0,01, "123" → 1,23, "123456" → 1.234,56). Até R$ 999.999.999,99.
+const AMOUNT_DIGITS = 11;
+function maskAmount(input) {
+  const digits = input.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, AMOUNT_DIGITS);
+  input.value = digits ? fmtPlain(Number(digits)) : '';
+  // O cursor fica sempre no fim, onde os números entram.
+  try { input.setSelectionRange(input.value.length, input.value.length); } catch { /* alguns tipos de campo não aceitam */ }
+}
 
 async function submitTx(event) {
   event.preventDefault();
@@ -621,15 +636,92 @@ const closeFabMenu = () => setFabMenu(false);
 // Peças das telas
 
 // Meses futuros: dá para avançar e ver as despesas futuras já cadastradas (até 10 anos à frente).
-const FUTURE_LIMIT = 120;
+const FUTURE_LIMIT = PAIS ? 0 : 120; // versão dos pais: sem meses futuros
 const isFuture = () => state.month > state.currentMonth;
+
+// Meses da faixa de escolha: do primeiro mês até 12 meses à frente (ou até a última despesa futura).
+function stripMonths() {
+  const lastPlanned = state.planned.reduce((max, p) => (p.month > max ? p.month : max), '');
+  let last = addMonths(state.currentMonth, PAIS ? 0 : 12);
+  if (!PAIS && lastPlanned > last) last = lastPlanned;
+  if (state.month > last) last = state.month;
+  const months = [];
+  for (let m = FIRST_MONTH; m <= last; m = addMonths(m, 1)) months.push(m);
+  return months;
+}
+
+const pickMonth = (m) => { if (m !== state.month) { state.month = m; render(); } };
+
+// All Features: faixa retangular só com os nomes dos meses; arraste para os lados para trocar (ou toque num mês).
+function monthStrip() {
+  return h('div', { class: 'month-strip', id: 'monthStrip', role: 'listbox', 'aria-label': 'Escolher o mês' },
+    stripMonths().map((m) => {
+      const selected = m === state.month;
+      const [y, mm] = m.split('-').map(Number);
+      const name = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(y, mm - 1, 1));
+      return h('button', {
+        type: 'button', role: 'option', class: `month-chip ${selected ? 'selected' : ''} ${m === state.currentMonth ? 'is-current' : ''}`,
+        'aria-selected': String(selected), 'data-month': m, onClick: () => { if (!stripDragged) pickMonth(m); },
+      }, h('span', { class: 'month-chip-name' }, name[0].toUpperCase() + name.slice(1)), h('span', { class: 'month-chip-year' }, String(y)));
+    }));
+}
+
+// Depois de desenhar: centraliza o mês escolhido e liga o arrastar (dedo rola sozinho; mouse arrasta aqui).
+let stripDragged = false;
+let stripSettle = null;
+function wireMonthStrip() {
+  const strip = $('monthStrip');
+  if (!strip) return;
+  const center = () => strip.scrollLeft + strip.clientWidth / 2;
+  const chipAt = () => [...strip.children].reduce((best, c) => {
+    const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - center());
+    return !best || d < best.d ? { c, d } : best;
+  }, null)?.c;
+  const sel = strip.querySelector('.selected');
+  if (sel) strip.scrollLeft = sel.offsetLeft + sel.offsetWidth / 2 - strip.clientWidth / 2;
+  let ignore = true; // a rolagem acima não conta como escolha
+  requestAnimationFrame(() => { ignore = false; });
+  strip.addEventListener('scroll', () => {
+    if (ignore) return;
+    clearTimeout(stripSettle);
+    // Quando o arraste para, o mês no centro vira o mês escolhido.
+    stripSettle = setTimeout(() => { const c = chipAt(); if (c) pickMonth(c.dataset.month); }, 180);
+  });
+  // Mouse (Chrome no PC): arrastar com o botão pressionado. No celular o dedo já rola a faixa.
+  let start = null;
+  strip.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    start = { x: e.clientX, left: strip.scrollLeft, id: e.pointerId }; stripDragged = false;
+  });
+  strip.addEventListener('pointermove', (e) => {
+    if (!start) return;
+    if (!stripDragged && Math.abs(e.clientX - start.x) <= 4) return; // ainda é um clique
+    if (!stripDragged) {
+      stripDragged = true;
+      // Só captura o mouse quando vira arraste: capturar antes mandaria o clique para a faixa, não para o mês.
+      try { strip.setPointerCapture(start.id); } catch { /* sem captura, o arraste para ao sair da faixa */ }
+    }
+    strip.scrollLeft = start.left - (e.clientX - start.x);
+  });
+  const end = () => { start = null; setTimeout(() => { stripDragged = false; }, 0); };
+  strip.addEventListener('pointerup', end);
+  strip.addEventListener('pointercancel', end);
+}
 
 function monthBar({ compare = true } = {}) {
   const go = (n) => () => { state.month = addMonths(state.month, n); render(); };
-  return h('div', { class: 'month' },
-    h('button', { class: 'icon-btn', type: 'button', id: 'prevMonth', 'aria-label': 'Mês anterior', disabled: state.month <= FIRST_MONTH, onClick: go(-1) }, icon('prev')),
-    h('h1', { id: 'monthLabel', 'aria-live': 'polite' }, monthLabel(state.month)),
-    h('button', { class: 'icon-btn', type: 'button', id: 'nextMonth', 'aria-label': 'Próximo mês', disabled: state.month >= addMonths(state.currentMonth, FUTURE_LIMIT), onClick: go(1) }, icon('next')),
+  // Sem setinhas à vista (continuam para leitores de tela e teclado); o nome do mês abre a faixa de meses.
+  // Nas duas versões; na Low Features a faixa vai só até o mês atual.
+  const arrow = 'icon-btn sr-only';
+  return h('div', { class: 'month month-swipe' },
+    h('button', { class: arrow, type: 'button', id: 'prevMonth', 'aria-label': 'Mês anterior', disabled: state.month <= FIRST_MONTH, onClick: go(-1) }, icon('prev')),
+    h('h1', { id: 'monthLabel', 'aria-live': 'polite' }, h('button', {
+        type: 'button', class: 'month-label-btn', id: 'monthBtn', 'aria-haspopup': 'listbox', 'aria-expanded': String(state.monthPop),
+        'aria-controls': 'monthStrip', title: 'Trocar o mês',
+        onClick: () => { state.monthPop = !state.monthPop; render(); },
+      }, monthLabel(state.month))),
+    h('button', { class: arrow, type: 'button', id: 'nextMonth', 'aria-label': 'Próximo mês', disabled: state.month >= addMonths(state.currentMonth, FUTURE_LIMIT), onClick: go(1) }, icon('next')),
+    state.monthPop ? monthStrip() : null,
     isFuture()
       ? h('div', { class: 'month-actions' },
         h('button', { class: 'compare-btn today-btn', type: 'button', id: 'todayBtn', onClick: () => { state.month = state.currentMonth; render(); } }, 'Voltar ao mês atual'))
@@ -967,7 +1059,9 @@ function committedOf(cat) {
 
 function categoryCard(group, color) {
   const { cat, total, children } = group;
-  const committed = committedOf(cat);
+  // O comprometido aparece só onde a despesa futura foi cadastrada: na subcategoria (linha dela) ou na
+  // categoria independente (este card). O card da categoria principal não mostra.
+  const committed = cat.kind === 'main' ? 0 : committedOf(cat);
   const open = state.expanded.has(cat.id);
   const hasChildren = children.length > 0;
   const card = h('section', { class: `card cat-card ${open ? 'open' : ''}`, 'data-category': cat.id });
@@ -1012,7 +1106,8 @@ function budgetBar(spent, budget, committed = 0) {
     h('span', { class: 'sub-pct' }, `${Math.round(pct)}%`),
     h('span', { class: 'sub-track' },
       h('span', { class: 'sub-fill', style: `width:${spentW}%` }),
-      committed ? h('span', { class: 'sub-fill committed', style: `left:${spentW}%;width:${Math.max(0, Math.min(pct, 100) - spentW)}%` }) : null));
+      committed ? h('span', { class: 'sub-fill committed', style: `left:${spentW}%;width:${Math.max(0, Math.min(pct, 100) - spentW)}%` }) : null),
+    committed ? h('span', { class: 'sub-committed-note' }, `+${fmtMoney(committed)} comprometido`) : null);
 }
 
 // Despesas da subcategoria no mês, com valor e detalhes.
@@ -1064,7 +1159,8 @@ function subRow({ cat, total }) {
       onClick: () => openSubDialog(cat, total),
     },
     h('span', { class: 'sub-name' }, categoryIcon(cat.id, 'cat-icon small'), h('span', { class: 'sub-label' }, cat.name)),
-    budgetBar(total, budgetOf(cat), committedOf(cat))));
+    // Versão dos pais não tem orçamento: no lugar da barra, o valor gasto no mês.
+    PAIS ? h('span', { class: 'sub-value' }, fmtMoney(total)) : budgetBar(total, budgetOf(cat), committedOf(cat))));
 }
 
 // Semana de segunda a domingo; pode começar no mês anterior.
@@ -1287,7 +1383,10 @@ function renderColorGrid() {
 function renderIconGrid() {
   const color = formColor();
   const scroll = $('catIcons').scrollTop;
-  $('catIcons').replaceChildren(...ICON_LIBRARY.map(([key, label]) => {
+  // Versão dos pais: só os 21 ícones da lista reduzida (o ícone atual da categoria entra também). A versão normal mostra os 52.
+  const keys = new Set(PAIS ? PICKER_ICONS : ICON_LIBRARY.map(([key]) => key));
+  if (catContext.icon) keys.add(catContext.icon);
+  $('catIcons').replaceChildren(...ICON_LIBRARY.filter(([key]) => keys.has(key)).map(([key, label]) => {
     const selected = key === catContext.icon;
     return h('button', {
       type: 'button', role: 'radio', class: `icon-choice ${selected ? 'selected' : ''}`, 'aria-checked': String(selected),
@@ -1405,12 +1504,13 @@ function manageRow(cat, child) {
 }
 
 const panelCategorias = () => [
-  h('div', { class: 'panel-actions' },
+  // Sem nenhuma categoria (primeira vez no app): o botão fica centralizado, com um aviso curto embaixo.
+  h('div', { class: `panel-actions ${activeRoots().length ? '' : 'is-empty'}` },
     h('button', { class: 'btn primary', type: 'button', id: 'newCategory', onClick: () => openCatForm() }, '+ Nova categoria'),
     activeRoots().some((c) => c.kind === 'main')
       ? h('button', { class: 'btn', type: 'button', id: 'newSubcategory', onClick: () => openCatForm(null, { kind: 'sub' }) }, '+ Nova subcategoria')
       : null),
-  activeRoots().length ? null : h('p', { class: 'note' }, 'Nenhuma categoria ainda. Crie uma categoria principal e, depois, as subcategorias dentro dela. Use o + ao lado da principal para criar uma subcategoria direto nela.'),
+  activeRoots().length ? null : h('p', { class: 'note manage-empty' }, 'Nenhuma categoria ainda. Cadastre uma categoria para ela aparecer aqui.'),
   activeRoots().flatMap((root) => [
     manageRow(root, false),
     ...activeChildren(root.id).map((c) => manageRow(c, true)),
@@ -1431,6 +1531,8 @@ function saveBudget(cat, input) {
     return;
   }
   if (cents === (current?.cents ?? null)) return;
+  // Depois de salvar (ou apagar), a linha passa a seguir só o orçamento gravado: apagar o valor tira da lista.
+  state.budgetPending.ids.delete(cat.id);
   commit(() => (cents
     ? db.putBudgets([{ id, month: state.month, categoryId: cat.id, cents }])
     : db.deleteBudget(id)));
@@ -1531,6 +1633,49 @@ function viewOrcamento() {
       h('p', { class: 'note' }, 'Nenhuma categoria ainda. Crie suas categorias na aba Categorias para definir os orçamentos.'))];
   }
 
+  // Só aparecem as categorias com orçamento no mês (e as que a pessoa acabou de escolher pelo +).
+  const pending = state.budgetPending.month === state.month ? state.budgetPending.ids : new Set();
+  const shown = (r) => r.budget !== null || (editable && pending.has(r.cat.id));
+  const groups = [];
+  for (const r of rows) {
+    if (r.level === 0) groups.push({ root: r, kids: [] });
+    else groups.at(-1)?.kids.push(r);
+  }
+  const free = (r) => r.budget === null && !pending.has(r.cat.id) && !r.cat.archived;
+  const budgetRow = ({ cat, level, budget }) => h('div', { class: `budget-row ${level ? 'child' : ''} ${cat.kind === 'main' ? 'is-main' : ''}`, 'data-budget': cat.id },
+    h('div', { class: 'budget-top' },
+      categoryIcon(cat.id, 'cat-icon small') ?? h('span', { class: 'cat-icon small placeholder', 'aria-hidden': 'true' }),
+      cat.kind === 'main' || !editable ? h('span', { class: 'budget-name' }, cat.name) : h('label', { for: `budget-${cat.id}` }, cat.name),
+      cat.kind === 'main' ? null : !editable
+        ? h('span', { class: `budget-value ${budget ? '' : 'is-empty'}`, 'aria-label': `Orçamento de ${cat.name}` }, budget ? fmtPlain(budget) : 'Sem limite')
+        : h('input', {
+          id: `budget-${cat.id}`, inputmode: 'decimal', autocomplete: 'off', placeholder: 'Valor',
+          value: budget ? fmtPlain(budget) : '',
+          'aria-label': `Orçamento de ${cat.name}`,
+          onChange: (e) => saveBudget(cat, e.target),
+          onKeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
+          // Escolhida pelo + e deixada em branco: some de novo.
+          onBlur: (e) => {
+            if (budget || e.target.value.trim()) return;
+            setTimeout(() => { if (pending.delete(cat.id)) render(); }, 0);
+          },
+        })));
+  const sections = [];
+  const leftover = []; // categorias sem nenhum orçamento: entram no "+ Orçamento em outra categoria"
+  for (const g of groups) {
+    if (g.root.cat.kind === 'main') {
+      const visible = g.kids.filter(shown);
+      const rest = g.kids.filter(free);
+      if (!visible.length) { if (!g.root.cat.archived && rest.length) leftover.push({ root: g.root.cat, kids: rest.map((r) => r.cat) }); continue; }
+      sections.push(budgetRow(g.root), ...visible.map(budgetRow));
+      if (editable && rest.length) sections.push(addBudgetButton(`main:${g.root.cat.id}`, `Orçamento em outra subcategoria de ${g.root.cat.name}`, [{ root: null, kids: rest.map((r) => r.cat) }]));
+    } else if (shown(g.root)) {
+      sections.push(budgetRow(g.root));
+    } else if (free(g.root)) {
+      leftover.push({ root: null, kids: [g.root.cat] });
+    }
+  }
+
   return [
     monthBar({ compare: false }),
     budgetSwitch(),
@@ -1540,20 +1685,35 @@ function viewOrcamento() {
         class: 'btn', type: 'button', id: 'copyBudgets', style: 'margin-top:10px', onClick: () => copyPreviousBudgets(previous),
       }, `Copiar de ${monthLabel(before)}`))
       : null,
-    h('section', { class: 'card budget-card' }, rows.map(({ cat, level, budget }) => h('div', { class: `budget-row ${level ? 'child' : ''} ${cat.kind === 'main' ? 'is-main' : ''}`, 'data-budget': cat.id },
-      h('div', { class: 'budget-top' },
-        categoryIcon(cat.id, 'cat-icon small') ?? h('span', { class: 'cat-icon small placeholder', 'aria-hidden': 'true' }),
-        cat.kind === 'main' || !editable ? h('span', { class: 'budget-name' }, cat.name) : h('label', { for: `budget-${cat.id}` }, cat.name),
-        cat.kind === 'main' ? null : !editable
-          ? h('span', { class: `budget-value ${budget ? '' : 'is-empty'}`, 'aria-label': `Orçamento de ${cat.name}` }, budget ? fmtPlain(budget) : 'Sem limite')
-          : h('input', {
-          id: `budget-${cat.id}`, inputmode: 'decimal', autocomplete: 'off', placeholder: 'Sem limite',
-          value: budget ? fmtPlain(budget) : '',
-          'aria-label': `Orçamento de ${cat.name}`,
-          onChange: (e) => saveBudget(cat, e.target),
-          onKeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
-        }))))),
+    h('section', { class: 'card budget-card' },
+      sections.length ? sections : h('p', { class: 'note budget-empty' }, editable ? `Nenhum orçamento em ${monthLabel(state.month)}. Toque no + para cadastrar.` : 'Nenhum orçamento neste mês.'),
+      editable && leftover.length
+        ? addBudgetButton('outras', sections.length ? 'Orçamento em outra categoria' : 'Cadastrar orçamento', leftover, true)
+        : null),
   ];
+}
+
+// Botão + e a lista das categorias ainda sem orçamento (abre ali mesmo, no estilo do seletor de categoria).
+function addBudgetButton(key, label, groups, wide = false) {
+  const open = state.budgetPick === key;
+  return h('div', { class: `budget-add-wrap ${wide ? 'wide' : ''}`, 'data-add': key },
+    h('button', {
+      type: 'button', class: `budget-add ${wide ? 'wide' : ''}`, 'aria-expanded': String(open), 'aria-label': label, title: label,
+      onClick: () => { state.budgetPick = open ? null : key; render(); },
+    }, icon('plus'), wide ? h('span', {}, label) : null),
+    open ? h('div', { class: 'cat-picker budget-pick', role: 'listbox', 'aria-label': label },
+      groups.map((g) => h('div', { class: 'cat-group' },
+        g.root ? h('p', { class: 'cat-group-title' }, g.root.name) : null,
+        g.kids.map((c) => h('button', {
+          type: 'button', role: 'option', class: `cat-option ${g.root ? 'child' : ''}`, 'data-value': c.id,
+          onClick: () => {
+            if (state.budgetPending.month !== state.month) state.budgetPending = { month: state.month, ids: new Set() };
+            state.budgetPending.ids.add(c.id);
+            state.budgetPick = null;
+            render();
+            $(`budget-${c.id}`)?.focus();
+          },
+        }, categoryIcon(c.id, 'cat-icon small') ?? h('span', { class: 'cat-icon small placeholder', 'aria-hidden': 'true' }), h('span', { class: 'cat-option-name' }, c.name)))))) : null);
 }
 
 function renderManage() {
@@ -1574,10 +1734,12 @@ function render() {
   $('manageBtn').hidden = state.tab !== 'categorias';
   closeFabMenu();
   for (const [id, tab] of [['tabOrcamento', 'orcamento'], ['tabCategorias', 'categorias'], ['tabBalanco', 'balanco']]) {
+    if (!$(id)) continue;
     if (tab === state.tab) $(id).setAttribute('aria-current', 'page');
     else $(id).removeAttribute('aria-current');
   }
   $('view').replaceChildren(...VIEWS[state.tab]().flat().filter(Boolean));
+  wireMonthStrip();
   renderManage();
   if ($('histDialog').open) renderHistEdit();
   if ($('typeDialog').open) renderTypeDialog();
@@ -1614,6 +1776,9 @@ function bindEvents() {
     if (!e.target.closest?.('.app-menu-wrap')) setAppMenu(false);
     // Toque fora do menu de lápis fecha. Os botões de dentro re-renderizam, então o alvo pode já ter saído da página.
     if (state.pop && e.target.isConnected && !e.target.closest('.pop-wrap')) { state.pop = null; render(); }
+    // Toque fora do nome do mês e da faixa fecha a faixa de meses.
+    if (state.monthPop && e.target.isConnected && !e.target.closest('#monthStrip, #monthBtn')) { state.monthPop = false; render(); }
+    if (state.budgetPick && e.target.isConnected && !e.target.closest('.budget-add-wrap')) { state.budgetPick = null; render(); }
   });
   $('histClose').addEventListener('click', () => $('histDialog').close());
   $('appMenuBtn').addEventListener('click', () => setAppMenu($('appMenu').hidden));
@@ -1621,7 +1786,11 @@ function bindEvents() {
   $('typeClose').addEventListener('click', () => $('typeDialog').close());
   $('typeDialog').addEventListener('click', (e) => { if (e.target === $('typeDialog')) $('typeDialog').close(); });
   $('histDialog').addEventListener('click', (e) => { if (e.target === $('histDialog')) $('histDialog').close(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFabMenu(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeFabMenu();
+    if (state.monthPop) { state.monthPop = false; render(); }
+  });
 
   $('txForm').addEventListener('submit', submitTx);
   $('txCatBtn').addEventListener('click', () => ($('txCatList').hidden ? openCatPicker() : closeCatPicker()));
@@ -1642,7 +1811,7 @@ function bindEvents() {
   $('txAddDate').addEventListener('click', () => addDateRow('').focus());
   $('txUntil').addEventListener('change', syncUntilNote);
   $('txUntil').addEventListener('input', syncUntilNote);
-  $('txAmount').addEventListener('input', syncUntilNote);
+  $('txAmount').addEventListener('input', (e) => { maskAmount(e.target); syncUntilNote(); });
 
   $('subClose').addEventListener('click', () => $('subDialog').close());
   $('cmpClose').addEventListener('click', () => $('cmpDialog').close());
@@ -1668,10 +1837,47 @@ function bindEvents() {
   setInterval(syncCurrentMonth, 60_000);
 }
 
+// Desde 22/11 toda categoria é principal ou subcategoria. Uma categoria independente antiga (ex.: Emergência)
+// vira uma principal com o mesmo nome, cor e ícone, e ela mesma passa a ser a subcategoria de dentro:
+// mantém o id, então lançamentos, orçamentos e despesas futuras continuam apontando para ela sem mudar nada.
+async function convertIndependents() {
+  const olds = state.cats.filter((c) => c.kind === 'independent');
+  if (!olds.length) return false;
+  const used = new Set(state.cats.map((c) => c.id));
+  const changes = [];
+  for (const c of olds) {
+    let id = `${c.id}-principal`;
+    for (let i = 2; used.has(id); i++) id = `${c.id}-principal-${i}`;
+    used.add(id);
+    const main = {
+      id, name: c.name, kind: 'main', parentId: null, order: c.order, archived: !!c.archived,
+      icon: c.icon ?? fileGlyph(c.id) ?? DEFAULT_ICON,
+      color: c.color ?? CATEGORY_COLORS[c.id] ?? categoryColor(c.id) ?? COLOR_PALETTE[0][0],
+    };
+    const { color, ...sub } = c; // a subcategoria herda a cor da principal
+    changes.push(main, { ...sub, kind: 'sub', parentId: id });
+  }
+  await db.putCategories(changes);
+  return true;
+}
+
 async function start() {
   bindEvents();
+  if (!PAIS) {
+    // All Features: o botão de editar categorias é uma caneta.
+    const svg = $('manageBtn').querySelector('svg');
+    svg.replaceChildren(icon('edit').querySelector('path'));
+    $('manageBtn').setAttribute('aria-label', 'Editar categorias');
+  }
+  if (PAIS) {
+    // Versão dos pais: só Balanço e Categorias.
+    $('tabOrcamento').remove();
+    delete VIEWS.orcamento;
+    document.documentElement.classList.add('pais');
+  }
   try {
     await reload();
+    if (await convertIndependents()) await reload();
     render();
     if (QUICK) startVoice();
   } catch (error) {
