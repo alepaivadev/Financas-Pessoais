@@ -1002,7 +1002,11 @@ function viewBalanco() {
 
   const balPeriod = effectivePeriod(state.bal);
   const periodTxs = chartTxs(balPeriod, state.bal.day);
-  const balance = periodTxs.reduce((sum, t) => sum + (t.type === 'income' ? t.amountCents : -t.amountCents), 0);
+  // Saldo contínuo: o que sobrou (ou faltou) antes do período continua valendo. Não vira receita: Receitas e
+  // Despesas seguem contando só o período.
+  const periodStart = { day: state.bal.day, today: today(), week: weekStart(today()), month: `${state.month}-01` }[balPeriod];
+  const carried = state.txs.filter((t) => t.date < periodStart).reduce((sum, t) => sum + (t.type === 'income' ? t.amountCents : -t.amountCents), 0);
+  const balance = carried + periodTxs.reduce((sum, t) => sum + (t.type === 'income' ? t.amountCents : -t.amountCents), 0);
   // Saldo, Receitas e Despesas seguem o período escolhido na setinha do Saldo.
   const suffix = { today: 'de hoje', week: 'da semana', month: 'do mês', day: `de ${shortDate(state.bal.day)}` }[balPeriod];
   const heroLabel = `Saldo ${suffix}`;

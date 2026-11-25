@@ -52,11 +52,12 @@
 
       await setClock(new Date(2026, 10, 1, 0, 5));
       check(text('monthLabel') === 'Novembro de 2026' && text('compareBtn') === 'Comparar', 'dia 1º abre novembro sozinho');
-      check(money('balance').includes('0,00') && text('history').includes('Nenhuma movimentação'), 'novembro começa zerado');
+      check(money('balance').includes('800,00') && text('history').includes('Nenhuma movimentação'), 'novembro herda o saldo de outubro, sem movimentações');
+      check(money('tile-income').includes('0,00'), 'o saldo herdado não vira receita');
       check(!$('nextMonth').disabled, 'dá para avançar para dezembro (mês futuro)');
 
       await addTx('expense', '50', 'uber');
-      check(money('balance').includes('50,00') && text('monthLabel') === 'Novembro de 2026', 'novembro recebe a despesa');
+      check(money('balance').includes('750,00') && text('monthLabel') === 'Novembro de 2026', 'novembro recebe a despesa sobre o saldo herdado');
 
       $('prevMonth').click();
       await wait(100);

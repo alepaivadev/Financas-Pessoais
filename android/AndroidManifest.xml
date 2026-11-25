@@ -2,8 +2,8 @@
 <!-- Sem permissão de INTERNET: o Android impede o app de enviar dados para fora do aparelho. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="br.financas.pessoais"
-    android:versionCode="16"
-    android:versionName="2.5">
+    android:versionCode="18"
+    android:versionName="2.6">
 
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
 
